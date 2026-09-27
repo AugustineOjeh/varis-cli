@@ -1,0 +1,81 @@
+# Instructions for coding agents in varis-cli
+
+This repository holds the Varis CLI, the `varis` command developers use to
+sign in, set up a project, and publish services that AI agents pay to call.
+It is language-agnostic for its users: it reads and writes `varis.json`,
+talks to the Varis API over HTTP, and runs each language's generator. It
+never reads a developer's source code.
+
+It is written in TypeScript and shipped as standalone binaries, so developers
+never need Node.js to run it.
+
+## Layout
+
+```
+varis-cli/
+├── src/cli.ts            The entry point. The only file that touches the process.
+├── src/commands/         One file per command: login, init, build, publish, logout.
+├── src/lib/cli.ts        The command list, the help text, and the dispatcher.
+├── src/lib/command.ts    The Command type every command implements.
+├── src/lib/output.ts     Output: where commands write, so tests can capture it.
+├── src/lib/constants.ts  The API origin, and its VARIS_API_URL override.
+├── src/lib/version.ts    The version.
+└── test/                 Vitest suites.
+```
+
+## Commands
+
+- `npm run varis -- <args>`: runs the CLI from source with Node 24, for example
+  `npm run varis -- --help`.
+- `npm test`: runs the Vitest suite.
+- `npm run typecheck`: type checks `src` and `test`.
+- `npm run build`: compiles a standalone binary with Bun into `dist/`.
+
+To run against a local `varis` app on port 3000:
+`VARIS_API_URL=http://localhost:3000/api npm run varis -- login`.
+
+## Rules
+
+### Runtime
+
+- Use only Node's standard modules (`node:fs`, `node:path`, `node:os`,
+  `node:child_process`, `node:crypto`) and the global `fetch`. Never use
+  Bun-specific APIs such as `Bun.file` or `Bun.spawn`. Bun compiles the
+  binaries, and this rule is what keeps the source portable to another
+  compiler.
+- End relative imports in `.ts`. Node runs the source directly, and so does
+  Bun.
+- Use only TypeScript that erases to JavaScript: no `enum`, no `namespace`,
+  no parameter properties. `erasableSyntaxOnly` enforces it.
+- Add no runtime dependencies without a strong reason. Every one ships inside
+  the binary.
+
+### Commands
+
+- The CLI has exactly five commands: `login`, `init`, `build`, `publish`, and
+  `logout`. Any new command needs a scope decision first.
+- A command's `run` returns its exit code and never calls `process.exit`:
+  0 for success, 1 for a failure the developer can fix, 2 for a crash or a
+  usage mistake.
+- Write through `Output`, never `console` or `process.stdout`. Results go to
+  `out`; errors and progress go to `err`.
+- Messages are plain sentences that say what to do next, for example "Run
+  varis login."
+
+### The API
+
+- The API hostname lives only in `src/lib/constants.ts`. Build every URL with
+  `apiOrigin()`.
+- The API contract is `openapi.yaml` in the `varis-ts` repository.
+- Send the user token as `Authorization: Bearer` and the owner as
+  `X-Varis-Owner-Identifier`. Never read `owner_id` or a user ID from anywhere
+  but the credentials file and `varis.json`.
+- `varis.json` never holds a token. Tokens live in the user's config
+  directory: `~/.config/varis/credentials.toml`, or
+  `%APPDATA%\varis\credentials.toml` on Windows.
+
+### Code style
+
+- Name identifiers in British English, except where a convention or spec
+  fixes the spelling, such as the `Authorization` header.
+- Name functions after what they do.
