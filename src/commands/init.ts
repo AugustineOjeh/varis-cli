@@ -51,6 +51,12 @@ export type InitDeps = {
   signIn: (output: Output) => Promise<number>;
 };
 
+/** The real dependencies, with any overridden: publish shares its own. */
+export const initDeps = (overrides: Partial<InitDeps> = {}): InitDeps => ({
+  ...defaultDeps(),
+  ...overrides,
+});
+
 const defaultDeps = (): InitDeps => {
   const env = process.env;
   const credentials = defaultLocation();
