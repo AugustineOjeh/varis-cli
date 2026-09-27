@@ -66,6 +66,11 @@ export type RequestOptions = {
   body?: unknown;
   /** "device" attaches this machine's token; "none" sends no credential. */
   auth: "device" | "none";
+  /**
+   * A specific device token to send instead, such as the one a new sign-in
+   * is replacing. Only with auth "none", so it never mixes with the file's.
+   */
+  bearer?: string;
   /** Sent as X-Varis-Owner-Identifier, for commands that act for an owner. */
   owner?: string;
   /** Injectable for tests. */
@@ -76,6 +81,13 @@ export type RequestOptions = {
 };
 
 const DEFAULT_TIMEOUT_MS = 30_000;
+
+/** apiRequest's shape, so commands can take a stand-in in tests. */
+export type ApiRequestFn = <T>(
+  method: "GET" | "POST" | "PATCH",
+  path: `/v1/${string}`,
+  options: RequestOptions,
+) => Promise<ApiResult<T>>;
 
 export async function apiRequest<T>(
   method: "GET" | "POST" | "PATCH",
@@ -119,6 +131,9 @@ export async function apiRequest<T>(
     }
   }
 
+  if (options.auth === "none" && options.bearer) {
+    headers.Authorization = `Bearer ${options.bearer}`;
+  }
   if (options.owner) headers["X-Varis-Owner-Identifier"] = options.owner;
   if (options.body !== undefined) headers["Content-Type"] = "application/json";
 

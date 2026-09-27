@@ -23,6 +23,7 @@ varis-cli/
 ├── src/lib/credentials.ts  The credentials file: one device token per machine.
 ├── src/lib/api.ts        apiRequest: the one way to call the Varis API.
 ├── src/lib/issues.ts     Pre-filled GitHub issue links for bugs.
+├── src/lib/device.ts     The machine's name, and whether a browser can open.
 ├── src/lib/version.ts    The version.
 └── test/                 Vitest suites.
 ```
