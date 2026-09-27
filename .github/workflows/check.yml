@@ -1,0 +1,35 @@
+# The type check and unit tests, from source, on Node. Quick, so it runs on
+# every pull request into main and every push to main, including a direct
+# push that skipped a pull request.
+#
+# Compiling the binaries is build.yml's job, and runs far less often.
+
+name: Check
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# A newer push to the same branch or pull request cancels an older run.
+concurrency:
+  group: check-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test

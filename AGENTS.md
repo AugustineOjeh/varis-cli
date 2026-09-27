@@ -36,7 +36,8 @@ varis-cli/
 ├── src/lib/schema.ts     JSON Schema validation, configured like the gateway.
 ├── src/lib/version.ts    The version.
 ├── scripts/smoke-test.sh  Checks one compiled binary runs without Node.js.
-├── .github/workflows/build.yml  Tests, compiles all five binaries, smoke-tests each.
+├── .github/workflows/check.yml  Type check and tests, on every pull request to main.
+├── .github/workflows/build.yml  Compiles all five binaries and smoke-tests each.
 └── test/                 Vitest suites.
 ```
 

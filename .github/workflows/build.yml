@@ -1,8 +1,14 @@
 # Checks, compiles, and smoke-tests the CLI on every platform it ships to.
 #
-# Runs on every push and pull request, and by hand from the Actions tab. The
-# release workflow (C2 in the CLI plan) will call it with `workflow_call` and
-# attach the binaries it produces to a GitHub release.
+# It doesn't run on every push: compiling five binaries and testing each on
+# its own machine takes a while, and most changes can't break it. It runs:
+#   - from the release workflow (C2 in the CLI plan), through
+#     `workflow_call`, which attaches the binaries to a GitHub release;
+#   - by hand, from the Actions tab (`workflow_dispatch`);
+#   - on a pull request that changes what the binaries are made from: the
+#     dependencies, this workflow, or the smoke test. A dependency Bun can't
+#     bundle then shows up in its pull request, not at release.
+# Every pull request also runs check.yml: the type check and unit tests.
 #
 # Three jobs, in order:
 #   check    Type check and unit tests, on Node, from source.
@@ -18,10 +24,15 @@
 name: Build
 
 on:
-  push:
-  pull_request:
-  workflow_dispatch:
   workflow_call:
+  workflow_dispatch:
+  pull_request:
+    branches: [main]
+    paths:
+      - package.json
+      - package-lock.json
+      - .github/workflows/build.yml
+      - scripts/smoke-test.sh
 
 # Read-only: this workflow never writes to the repository.
 permissions:
