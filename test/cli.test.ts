@@ -8,7 +8,12 @@ import { VERSION } from "../src/lib/version.ts";
 function capture() {
   const out: string[] = [];
   const err: string[] = [];
-  const output: Output = { out: (t) => out.push(t), err: (t) => err.push(t) };
+  const output: Output = {
+    out: (t) => out.push(t),
+    err: (t) => err.push(t),
+    status: (t) => err.push(t),
+    styled: false,
+  };
   return { output, out, err };
 }
 
@@ -63,7 +68,7 @@ describe("varis", () => {
 
   it("reports a command that isn't built yet, exiting 1", async () => {
     const { output, err } = capture();
-    expect(await runCli(["login"], output)).toBe(1);
+    expect(await runCli(["upgrade"], output)).toBe(1);
     expect(err.join("\n")).toContain("isn't built yet");
   });
 });

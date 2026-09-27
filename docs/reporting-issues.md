@@ -34,7 +34,8 @@ language and framework, and your `varis.json` with the `owner_id` removed.
 ## Never include
 
 - Your device token.
-- The contents of `credentials.toml`, found in systems /configs. directory.
+- The contents of `credentials.toml`, found in your machine's `/configs`.
+  directory.
 - Agent keys, or any other secret from your project.
 
 If you pasted a token by mistake, sign that machine out from the Varis
@@ -43,4 +44,5 @@ dashboard, under **Settings > Devices**, and edit the issue to remove it.
 ## Security problems
 
 If you found a security vulnerability, don't open a public issue. Email the
-details privately instead, so we can fix it before it's known.
+details to [security@varis.my](mailto:security@varis.my) instead, so we can
+fix it before it's known.
