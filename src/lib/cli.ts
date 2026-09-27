@@ -6,6 +6,7 @@ import { publish } from "../commands/publish.ts";
 import { test } from "../commands/test.ts";
 import type { Command } from "./command.ts";
 import type { Output } from "./output.ts";
+import { reportLines } from "./issues.ts";
 import { VERSION } from "./version.ts";
 
 /**
@@ -77,11 +78,17 @@ export async function runCli(argv: string[], output: Output): Promise<number> {
     return await command.run(rest, output);
   } catch (error) {
     // A command reports expected failures itself and returns 1. Reaching here
-    // is a bug, so say so plainly rather than leaking a stack trace.
-    output.err(
-      `varis ${command.name} crashed: ${error instanceof Error ? error.message : String(error)}`,
-    );
-    output.err("This is a bug in the Varis CLI. Please report it.");
+    // is a bug, so say so plainly rather than leaking a stack trace, and hand
+    // the developer a report that already carries what we need.
+    const message = error instanceof Error ? error.message : String(error);
+    output.err(`varis ${command.name} crashed: ${message}`);
+    output.err("This is a bug in the Varis CLI.");
+    for (const line of reportLines({
+      command: ["varis", command.name, ...rest].join(" "),
+      error: message,
+    })) {
+      output.err(line);
+    }
     return 2;
   }
 }

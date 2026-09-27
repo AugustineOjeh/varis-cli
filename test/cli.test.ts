@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import { publish } from "../src/commands/publish.ts";
 import { COMMANDS, helpText, runCli } from "../src/lib/cli.ts";
 import { apiOrigin, VARIS_API_ORIGIN } from "../src/lib/constants.ts";
 import type { Output } from "../src/lib/output.ts";
@@ -62,6 +63,22 @@ describe("varis", () => {
     const { output, err } = capture();
     expect(await runCli(["login"], output)).toBe(1);
     expect(err.join("\n")).toContain("isn't built yet");
+  });
+});
+
+describe("a command that crashes", () => {
+  it("says it's a bug and gives a pre-filled GitHub issue link, exiting 2", async () => {
+    const spy = vi.spyOn(publish, "run").mockRejectedValue(new Error("boom"));
+    const { output, err } = capture();
+
+    expect(await runCli(["publish", "weather"], output)).toBe(2);
+
+    const printed = err.join("\n");
+    expect(printed).toContain("varis publish crashed: boom");
+    expect(printed).toContain("issues/new?");
+    expect(printed).toContain("command=varis+publish+weather");
+    expect(printed).toContain("reporting-issues.md");
+    spy.mockRestore();
   });
 });
 

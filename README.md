@@ -27,6 +27,12 @@ Run `varis <command> --help` for details.
 Coming soon: an install script, Homebrew, and Scoop. The CLI is a single
 binary and doesn't need Node.js.
 
+## Report a problem
+
+Open an issue on [GitHub](https://github.com/AugustineOjeh/varis-cli/issues).
+When the CLI hits a bug, it prints a link that fills in the details for you.
+See [how to write a report we can act on](docs/reporting-issues.md).
+
 ## License
 
 MIT

@@ -25,11 +25,12 @@
 import { chmod, mkdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import type { Env } from "./constants.ts";
 
 /** Where to look, injectable so tests never touch the real home directory. */
 export type CredentialsLocation = {
-  env: NodeJS.ProcessEnv;
-  platform: NodeJS.Platform;
+  env: Env;
+  platform: typeof process.platform;
   home: string;
 };
 
@@ -190,11 +191,11 @@ export function parseCredentials(text: string): Parsed {
 
     const entry = /^(token|api)\s*=\s*"([^"\\]*)"$/.exec(line);
     if (!entry) {
-      return { ok: false, reason: `line ${index + 1} isn't something varis wrote.` };
+      return { ok: false, reason: `line ${index + 1} isn't something varis wrote` };
     }
     const [, key, value] = entry as unknown as [string, string, string];
     if (values.has(key)) {
-      return { ok: false, reason: `${key} appears twice.` };
+      return { ok: false, reason: `${key} appears twice` };
     }
     values.set(key, value);
   }
@@ -202,10 +203,10 @@ export function parseCredentials(text: string): Parsed {
   const token = values.get("token");
   const api = values.get("api");
   if (!token || !api) {
-    return { ok: false, reason: `${token ? "api" : "token"} is missing.` };
+    return { ok: false, reason: `${token ? "api" : "token"} is missing` };
   }
   if (!TOKEN_PATTERN.test(token)) {
-    return { ok: false, reason: "token isn't a device token." };
+    return { ok: false, reason: "token isn't a device token" };
   }
   return { ok: true, credentials: { token, api } };
 }
@@ -215,5 +216,5 @@ export function serialiseCredentials({ token, api }: Credentials): string {
 }
 
 function isNotFound(error: unknown): boolean {
-  return (error as NodeJS.ErrnoException | null)?.code === "ENOENT";
+  return (error as { code?: unknown } | null)?.code === "ENOENT";
 }

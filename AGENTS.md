@@ -21,6 +21,7 @@ varis-cli/
 ├── src/lib/constants.ts  The API origin, and its VARIS_API_URL override.
 ├── src/lib/credentials.ts  The credentials file: one device token per machine.
 ├── src/lib/api.ts        apiRequest: the one way to call the Varis API.
+├── src/lib/issues.ts     Pre-filled GitHub issue links for bugs.
 ├── src/lib/version.ts    The version.
 └── test/                 Vitest suites.
 ```
@@ -63,6 +64,10 @@ To run against a local `varis` app on port 3000:
   `out`; errors and progress go to `err`.
 - Messages are plain sentences that say what to do next, for example "Run
   varis login."
+- When a failure is our bug rather than the developer's, print
+  `reportLines()` from `src/lib/issues.ts`: a pre-filled GitHub issue link
+  and the reporting guide. Never ask developers to "contact us".
+- The repository URL lives only in `src/lib/constants.ts`.
 
 ### The API
 

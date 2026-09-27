@@ -12,7 +12,8 @@
 //   OAuth    { "error": "authorization_pending", "error_description" }
 // The second is the device flow's token endpoint. Both land in ApiError.code.
 
-import { apiOrigin } from "./constants.ts";
+import { apiOrigin, type Env } from "./constants.ts";
+import { bugReportUrl } from "./issues.ts";
 import {
   type CredentialsLocation,
   defaultLocation,
@@ -69,7 +70,7 @@ export type RequestOptions = {
   owner?: string;
   /** Injectable for tests. */
   fetch?: typeof fetch;
-  env?: NodeJS.ProcessEnv;
+  env?: Env;
   credentials?: CredentialsLocation;
   timeoutMs?: number;
 };
@@ -111,7 +112,7 @@ export async function apiRequest<T>(
         return fail({
           kind: "damaged_credentials",
           message:
-            `Your credentials file at ${token.path} is damaged: ${token.reason} Run varis login to replace it.`,
+            `Your credentials file at ${token.path} is damaged: ${token.reason}. Run varis login to replace it.`,
         });
       case "signed_in":
         headers.Authorization = `Bearer ${token.token}`;
@@ -221,7 +222,7 @@ function httpError(response: Response, body: unknown): ApiError {
     return {
       ...base,
       kind: "forbidden",
-      message: said ?? "Varis doesn't allow that for this account.",
+      message: said ?? "Varis doesn't allow that operation for this account.",
     };
   }
 
@@ -242,7 +243,9 @@ function httpError(response: Response, body: unknown): ApiError {
       kind: "server",
       message: `Varis had a problem on its side (HTTP ${status}${
         requestId ? `, request ${requestId}` : ""
-      }). Try again in a moment. If it keeps happening, send us the request ID.`,
+      }). Try again in a moment. If it keeps happening, report it on GitHub: ${
+        bugReportUrl({ requestId, error: `HTTP ${status}` })
+      }`,
     };
   }
 
@@ -256,7 +259,7 @@ function httpError(response: Response, body: unknown): ApiError {
 function networkError(
   error: unknown,
   origin: string,
-  env: NodeJS.ProcessEnv,
+  env: Env,
 ): ApiError {
   const name = (error as { name?: string } | null)?.name;
   const timedOut = name === "TimeoutError" || name === "AbortError";
