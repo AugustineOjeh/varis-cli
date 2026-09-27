@@ -1,0 +1,118 @@
+# Publishes a release when a version tag is pushed.
+#
+#   git tag v0.2.0 && git push origin v0.2.0
+#
+# Three jobs, in order:
+#   validate  The tag must look like v1.2.3 (or v1.2.3-rc.1) and point at a
+#             commit already on main, so nothing unreviewed ships.
+#   build     build.yml, with the version stamped in from the tag: tests,
+#             all five binaries compiled, each smoke-tested on its own
+#             platform. Nothing is released unless every one passes.
+#   publish   Renames the binaries for download, writes SHA256SUMS, and
+#             creates the GitHub release with notes generated from the
+#             merged pull requests.
+#
+# A tag with a suffix, such as v0.2.0-rc.1, makes a pre-release. GitHub never
+# marks a pre-release as latest, so the install script, `varis upgrade`, and
+# the package managers, which all follow the latest release, skip it.
+#
+# The release assets, which the install scripts, Homebrew, and Scoop
+# download by these exact names:
+#   varis-darwin-arm64  varis-darwin-x64  varis-linux-x64  varis-linux-arm64
+#   varis-windows-x64.exe  SHA256SUMS
+
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+# Read-only by default. Only the publish job may write, to create the release.
+permissions:
+  contents: read
+
+# One release per tag at a time, and never cancelled halfway.
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      # The full history, so the on-main check below can see main.
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      # The tag name ends up in a shell command, a file, and the release
+      # title, so it must be exactly a version, nothing else.
+      - name: Read the version from the tag
+        id: version
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          if ! [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$ ]]; then
+            echo "::error::The tag $TAG isn't a version. Use v1.2.3, or v1.2.3-rc.1 for a pre-release."
+            exit 1
+          fi
+          echo "version=${TAG#v}" >>"$GITHUB_OUTPUT"
+
+      - name: Check the tagged commit is on main
+        run: |
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
+            echo "::error::The tag points at a commit that isn't on main. Merge first, then tag main."
+            exit 1
+          fi
+
+  build:
+    needs: validate
+    uses: ./.github/workflows/build.yml
+    with:
+      version: ${{ needs.validate.outputs.version }}
+
+  publish:
+    needs: [validate, build]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      # Every binary build.yml uploaded, each in its own folder:
+      # artifacts/varis-linux-x64/varis, and so on.
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: varis-*
+          path: artifacts
+
+      # Each binary gets its platform in its name, so one release can hold
+      # all five. Installers rename it back to varis (or varis.exe).
+      - name: Name the binaries and write checksums
+        run: |
+          mkdir release
+          for target in darwin-arm64 darwin-x64 linux-x64 linux-arm64; do
+            cp "artifacts/varis-$target/varis" "release/varis-$target"
+          done
+          cp artifacts/varis-windows-x64/varis.exe release/varis-windows-x64.exe
+          cd release
+          # sha256sum's own format, so `sha256sum -c` and
+          # `shasum -a 256 -c` both check it as is.
+          sha256sum varis-* >SHA256SUMS
+          ls -l
+          cat SHA256SUMS
+
+      - name: Create the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+          VERSION: ${{ needs.validate.outputs.version }}
+        run: |
+          prerelease=()
+          [[ "$VERSION" == *-* ]] && prerelease=(--prerelease)
+          gh release create "$TAG" release/* \
+            --repo "$GITHUB_REPOSITORY" \
+            --verify-tag \
+            --title "varis $VERSION" \
+            --generate-notes \
+            "${prerelease[@]}"

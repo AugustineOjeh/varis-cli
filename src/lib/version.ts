@@ -1,5 +1,6 @@
 /**
- * The CLI's version. Kept in step with package.json by the release workflow
- * (C2 in the CLI plan), which stamps it before compiling the binaries.
+ * The CLI's version. Leave it as is: the release workflow
+ * (.github/workflows/release.yml) stamps the tag's version here before
+ * compiling, so a released binary always reports the tag it came from.
  */
 export const VERSION = "0.1.0";

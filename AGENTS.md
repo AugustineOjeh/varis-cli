@@ -38,6 +38,7 @@ varis-cli/
 ├── scripts/smoke-test.sh  Checks one compiled binary runs without Node.js.
 ├── .github/workflows/check.yml  Type check and tests, on every pull request to main.
 ├── .github/workflows/build.yml  Compiles all five binaries and smoke-tests each.
+├── .github/workflows/release.yml  On a version tag: builds, checksums, and releases.
 └── test/                 Vitest suites.
 ```
 
@@ -55,6 +56,16 @@ To run against a local `varis` app on port 3000:
 
 To run `varis build` against a local generator instead of the npm package:
 `VARIS_BUILD_COMMAND="node ~/dev/Projects/varis-ts/packages/build/dist/cli.js"`.
+
+## Releasing
+
+Merge to `main`, then tag the merged commit and push the tag:
+`git tag v0.2.0 && git push origin v0.2.0`. `release.yml` checks the tag is a
+version on `main`, runs `build.yml` with that version stamped into
+`src/lib/version.ts`, and publishes the five binaries and `SHA256SUMS` as a
+GitHub release. A tag like `v0.2.0-rc.1` makes a pre-release, which nothing
+installs by default. Never bump `src/lib/version.ts` by hand, and never
+rename the release assets: the installers download them by name.
 
 ## Rules
 

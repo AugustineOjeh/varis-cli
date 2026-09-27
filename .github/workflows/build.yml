@@ -25,6 +25,14 @@ name: Build
 
 on:
   workflow_call:
+    inputs:
+      # The version to stamp into the binaries, such as 0.2.0, without the
+      # "v". The release workflow passes it from the tag, already checked.
+      # Left empty, the binaries keep the version in src/lib/version.ts.
+      version:
+        type: string
+        required: false
+        default: ""
   workflow_dispatch:
   pull_request:
     branches: [main]
@@ -72,6 +80,18 @@ jobs:
       # installed first. npm, because package-lock.json is the lockfile;
       # --omit=dev skips the test and type tools.
       - run: npm ci --omit=dev
+
+      # The release's version, written into src/lib/version.ts before
+      # compiling, so `varis --version` matches the tag with nothing to bump
+      # by hand. Passed through env, never pasted into the script, so a
+      # version string can't inject shell code.
+      - name: Stamp the version
+        if: inputs.version != ''
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          sed -i '' -E "s/^export const VERSION = \".*\";$/export const VERSION = \"$VERSION\";/" src/lib/version.ts
+          grep -qx "export const VERSION = \"$VERSION\";" src/lib/version.ts
 
       # One folder per target, each holding a binary named as developers run
       # it: varis, or varis.exe on Windows. --minify shrinks the bundled
@@ -152,6 +172,9 @@ jobs:
       # Artifacts don't keep the executable bit. Windows doesn't need it.
       - run: chmod +x bin/varis || true
       - name: Smoke test
+        env:
+          # Empty outside a release, which skips the version check.
+          EXPECTED_VERSION: ${{ inputs.version }}
         run: |
           binary=bin/varis
           [ -f bin/varis.exe ] && binary=bin/varis.exe

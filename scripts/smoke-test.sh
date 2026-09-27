@@ -10,7 +10,8 @@
 #      Node to publish, so every check runs with PATH cut down to the
 #      system's basic tools, and the script first confirms node isn't on it.
 #   2. The command list is intact: --help names every command, and
-#      --version answers.
+#      --version answers. With EXPECTED_VERSION set, as in a release, it
+#      must answer exactly that.
 #   3. The bundled dependencies work. varis test validates input with Ajv
 #      and ajv-formats, which are bundled into the binary; a format check
 #      failing with the right message proves both made it in. The check
@@ -45,7 +46,11 @@ varis() {
 }
 
 echo "--- varis --version"
-varis --version
+version="$(varis --version)"
+echo "$version"
+if [ -n "${EXPECTED_VERSION:-}" ] && [ "$version" != "$EXPECTED_VERSION" ]; then
+  fail "--version says $version, expected $EXPECTED_VERSION"
+fi
 
 echo "--- varis --help"
 help="$(varis --help)"
