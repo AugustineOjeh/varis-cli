@@ -43,3 +43,9 @@ export const REPORTING_GUIDE_URL =
 export const SDK_REPOSITORY_URL = "https://github.com/AugustineOjeh/varis-ts";
 
 export const SDK_ISSUES_URL = `${SDK_REPOSITORY_URL}/issues`;
+
+/** Varis documentation. Pages linked from the CLI are stubs until written. */
+export const DOCS_URL = "https://varis.my/docs";
+
+/** How a service's path, endpoint_url, base_url, and test_base_url relate. */
+export const ENDPOINTS_DOCS_URL = `${DOCS_URL}/services/endpoints`;

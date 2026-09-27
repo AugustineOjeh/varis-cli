@@ -21,8 +21,8 @@ the Varis SDK's instructions for coding agents:
 
 Then run \`varis build\` and commit the updated \`varis.json\`. Never edit the
 \`services\` list in \`varis.json\` by hand; \`varis build\` owns it. Change
-\`owner_id\` or \`base_url\` only with \`varis init\`, and only when the
-developer asks. Never put a token or other secret in \`varis.json\`.`;
+\`owner_id\`, \`base_url\`, or \`test_base_url\` only with \`varis init\`, and
+only when the developer asks. Never put a token or other secret in \`varis.json\`.`;
 
 const BLOCK = `${BLOCK_BEGIN}\n${BLOCK_BODY}\n${BLOCK_END}`;
 

@@ -1,10 +1,10 @@
 // varis init: sets up varis.json in the current project, or changes it.
 //
-// Chooses the owner the project publishes for and the production base URL,
-// and writes both to varis.json. Re-running it offers the current values as
-// defaults and keeps the services list, so it is also how either setting
-// changes later. --owner and --base-url skip their prompts, so both together
-// run without a terminal, as in CI.
+// Connects the project to an owner and writes varis.json. It asks at most
+// one question, which owner, and only when there is more than one. The base
+// URLs are set by flags, not prompts: --base-url for production and
+// --test-base-url for varis test. Re-running it keeps the services list and
+// every value not given, so it is also how any setting changes later.
 //
 // Also leaves a note for coding agents: a marked block in AGENTS.md pointing
 // at the SDK's instructions, and the @AGENTS.md import in CLAUDE.md.
@@ -20,9 +20,13 @@ import {
   upsertAgentsBlock,
 } from "../lib/agent-instructions.ts";
 import { apiRequest, type ApiRequestFn } from "../lib/api.ts";
-import { baseUrlProblem, normaliseBaseUrl } from "../lib/base-url.ts";
+import {
+  baseUrlProblem,
+  normaliseBaseUrl,
+  testBaseUrlProblem,
+} from "../lib/base-url.ts";
 import type { Command } from "../lib/command.ts";
-import { apiOrigin, type Env } from "../lib/constants.ts";
+import { apiOrigin, ENDPOINTS_DOCS_URL, type Env } from "../lib/constants.ts";
 import {
   type CredentialsLocation,
   defaultLocation,
@@ -71,7 +75,7 @@ const defaultDeps = (): InitDeps => {
   };
 };
 
-type Flags = { owner?: string; baseUrl?: string };
+type Flags = { owner?: string; baseUrl?: string; testBaseUrl?: string };
 
 function parseFlags(args: string[]): Flags | { error: string } {
   try {
@@ -80,11 +84,16 @@ function parseFlags(args: string[]): Flags | { error: string } {
       options: {
         owner: { type: "string" },
         "base-url": { type: "string" },
+        "test-base-url": { type: "string" },
       },
       strict: true,
       allowPositionals: false,
     });
-    return { owner: values.owner, baseUrl: values["base-url"] };
+    return {
+      owner: values.owner,
+      baseUrl: values["base-url"],
+      testBaseUrl: values["test-base-url"],
+    };
   } catch (error) {
     return { error: error instanceof Error ? error.message : String(error) };
   }
@@ -109,6 +118,13 @@ export async function runInit(
     const problem = baseUrlProblem(flags.baseUrl);
     if (problem) {
       output.err(failure(output, `--base-url ${problem}.`));
+      return 1;
+    }
+  }
+  if (flags.testBaseUrl !== undefined) {
+    const problem = testBaseUrlProblem(flags.testBaseUrl);
+    if (problem) {
+      output.err(failure(output, `--test-base-url ${problem}.`));
       return 1;
     }
   }
@@ -153,14 +169,19 @@ export async function runInit(
   const owner = await chooseOwner(owners, flags, existing, output, deps.prompter);
   if (owner === null) return 1;
 
-  const baseUrl = await chooseBaseUrl(flags, existing, output, deps.prompter);
-  if (baseUrl === null) return 1;
+  const baseUrl = flags.baseUrl !== undefined
+    ? normaliseBaseUrl(flags.baseUrl)
+    : existing.base_url;
+  const testBaseUrl = flags.testBaseUrl !== undefined
+    ? normaliseBaseUrl(flags.testBaseUrl)
+    : existing.test_base_url;
 
   // Every answer is in. Only now does anything change on disk.
   const written = await writeManifest(deps.cwd, {
     ...existing,
     owner_id: owner.id,
     ...(baseUrl !== undefined && { base_url: baseUrl }),
+    ...(testBaseUrl !== undefined && { test_base_url: testBaseUrl }),
     services: existing.services ?? [],
   });
   const agents = await upsertAgentsBlock(deps.cwd);
@@ -174,15 +195,29 @@ export async function runInit(
         : `${found.status === "found" ? "Updated" : "Created"} ${MANIFEST_FILE}.`,
     ),
   );
-  output.out(`  Owner:     ${label(output, owner)}`);
-  output.out(
-    `  Base URL:  ${baseUrl ?? existing.base_url ?? dim(output, "none; each service sets endpoint_url")}`,
-  );
+  const notSet = dim(output, "not set");
+  output.out(`  Owner:          ${label(output, owner)}`);
+  output.out(`  Base URL:       ${baseUrl ?? notSet}`);
+  output.out(`  Test base URL:  ${testBaseUrl ?? notSet}`);
   const touched = [
     describe("AGENTS.md", agents),
     describe("CLAUDE.md", claude),
   ].filter(Boolean);
   if (touched.length > 0) output.out(`  ${touched.join(", ")}.`);
+
+  output.out("");
+  if (baseUrl === undefined || testBaseUrl === undefined) {
+    output.out("Set where your services live, and where to test them:");
+    output.out("");
+    output.out(
+      `  varis init --base-url ${baseUrl ?? "<BASE_URL>"} --test-base-url ${testBaseUrl ?? "<TEST_BASE_URL>"}`,
+    );
+    output.out("");
+  }
+  output.out(
+    "Each service sets a path, joined to base_url when you publish and to test_base_url when you run varis test, or a full endpoint_url, used as written.",
+  );
+  output.out(`Learn more: ${ENDPOINTS_DOCS_URL}`);
   output.out("");
   output.out("Next: define a service with the Varis SDK, then run varis publish.");
   return 0;
@@ -248,57 +283,25 @@ async function chooseOwner(
   return null;
 }
 
-/**
- * The base URL to write: a string, undefined to leave it as it is (or
- * absent), or null after a cancelled prompt.
- */
-async function chooseBaseUrl(
-  flags: Flags,
-  existing: Manifest,
-  output: Output,
-  prompter: Prompter,
-): Promise<string | undefined | null> {
-  if (flags.baseUrl !== undefined) return normaliseBaseUrl(flags.baseUrl);
-  if (!prompter.interactive) return undefined;
-
-  output.err("");
-  output.err(
-    "Your production base URL, if your services share one. Each service's path is joined to it.",
-  );
-  output.err(
-    dim(output, "Enter keeps the current one, or skips it if services set endpoint_url instead."),
-  );
-
-  for (;;) {
-    const answer = await prompter.input("Base URL", existing.base_url);
-    if (answer === null) {
-      output.err("Cancelled. Nothing was changed.");
-      return null;
-    }
-    if (answer === "") return undefined;
-
-    const problem = baseUrlProblem(answer);
-    if (!problem) return normaliseBaseUrl(answer);
-    output.err(failure(output, `That base URL ${problem}. Try again.`));
-  }
-}
-
 export const init: Command = {
   name: "init",
   summary: "Set up varis.json in this project",
-  usage: `Usage: varis init [--owner <id>] [--base-url <url>]
+  usage: `Usage: varis init [--owner <id>] [--base-url <url>] [--test-base-url <url>]
 
-  Sets up varis.json in this folder: which owner the project publishes for,
-  and its production base URL. Signs you in first if needed. Run it again to
-  change either; it keeps your services.
+  Sets up varis.json in this folder and connects it to your owner. Signs you
+  in first if needed. Run it again to change any setting; it keeps your
+  services and every setting you don't give.
 
   Also adds a short note for coding agents to AGENTS.md, and makes sure
   CLAUDE.md reads it. Only the text between Varis's markers is ever changed.
 
-  --owner <id>       Use this owner instead of choosing from a list.
-  --base-url <url>   Use this base URL instead of being asked. It must be your
-                     production address, over https.
+  --owner <id>             Use this owner instead of choosing from a list.
+                           Only asked when you belong to more than one.
+  --base-url <url>         Your production address, over https. Each
+                           service's path is joined to it when you publish.
+  --test-base-url <url>    Where varis test calls, such as
+                           http://localhost:3000. Never sent when you publish.
 
-  With both options, it asks nothing, which is what CI needs.`,
+  Learn more: ${ENDPOINTS_DOCS_URL}`,
   run: (args, output) => runInit(args, output),
 };

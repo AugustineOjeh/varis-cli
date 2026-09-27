@@ -1,6 +1,8 @@
 // varis.json: the project's service manifest, committed with its code.
 //
-// varis init writes owner_id and base_url. varis build owns services. Any
+// varis init writes owner_id, base_url, and test_base_url. varis build owns
+// services, and varis publish sends only services, so test_base_url never
+// leaves the machine. Any
 // other key is kept exactly as found, so a newer CLI's fields survive an
 // older one's write. It never holds a token.
 
@@ -12,6 +14,7 @@ export const MANIFEST_FILE = "varis.json";
 export type Manifest = {
   owner_id?: string;
   base_url?: string;
+  test_base_url?: string;
   services?: unknown[];
   [key: string]: unknown;
 };
@@ -71,10 +74,11 @@ export async function writeManifest(
 
 /** The exact text writeManifest writes for `manifest`. */
 export function manifestText(manifest: Manifest): string {
-  const { owner_id, base_url, services, ...rest } = manifest;
+  const { owner_id, base_url, test_base_url, services, ...rest } = manifest;
   const ordered: Manifest = {
     ...(owner_id !== undefined && { owner_id }),
     ...(base_url !== undefined && { base_url }),
+    ...(test_base_url !== undefined && { test_base_url }),
     ...rest,
     services: services ?? [],
   };

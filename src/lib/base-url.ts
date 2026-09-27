@@ -30,6 +30,29 @@ export function baseUrlProblem(value: string): string | undefined {
   return undefined;
 }
 
+/**
+ * Why `value` can't be a test base URL, or undefined if it can. Looser than
+ * the production rules: a test server is usually local, so http and
+ * localhost are fine. Still a full URL, with no query or fragment, because
+ * each service's path is joined to it.
+ */
+export function testBaseUrlProblem(value: string): string | undefined {
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    return "isn't a full URL, such as http://localhost:3000";
+  }
+  if (url.protocol !== "http:" && url.protocol !== "https:") {
+    return "must start with http:// or https://";
+  }
+  if (url.search !== "" || value.includes("?")) {
+    return "can't include a query string";
+  }
+  if (url.hash !== "" || value.includes("#")) return "can't include a fragment";
+  return undefined;
+}
+
 /** The form stored in varis.json: no trailing slash. */
 export function normaliseBaseUrl(value: string): string {
   return value.trim().replace(/\/+$/, "");

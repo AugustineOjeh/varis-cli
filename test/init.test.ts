@@ -87,16 +87,13 @@ const read = (file: string) => readFile(path.join(project, file), "utf8");
 const manifest = async () => JSON.parse(await read("varis.json"));
 
 describe("a new project", () => {
-  it("writes varis.json, AGENTS.md, and CLAUDE.md", async () => {
-    const t = setup([ACME], { inputs: ["https://api.example.com/"] });
+  it("writes varis.json, AGENTS.md, and CLAUDE.md, asking nothing", async () => {
+    const t = setup([ACME], { inputs: [] });
 
     expect(await runInit([], t.output, t.deps)).toBe(0);
 
-    expect(await manifest()).toEqual({
-      owner_id: ACME.id,
-      base_url: "https://api.example.com",
-      services: [],
-    });
+    expect(t.asked).toEqual([]);
+    expect(await manifest()).toEqual({ owner_id: ACME.id, services: [] });
     const agents = await read("AGENTS.md");
     expect(agents).toContain(BLOCK_BEGIN);
     expect(agents).toContain("node_modules/@usevaris/sdk/docs/agents.md");
@@ -106,30 +103,91 @@ describe("a new project", () => {
   });
 
   it("uses a single owner without asking, and names it with its ID", async () => {
-    const t = setup([ACME], { inputs: [""] });
+    const t = setup([ACME], { inputs: [] });
     await runInit([], t.output, t.deps);
-    expect(t.asked.some((q) => q.startsWith("select"))).toBe(false);
+    expect(t.asked).toEqual([]);
     expect(t.out.join("\n")).toContain(`Acme Corp (${ACME.id})`);
   });
 
-  it("lets a blank base URL skip it", async () => {
-    const t = setup([ACME], { inputs: [""] });
+  it("shows the command that sets both base URLs, the note, and the docs", async () => {
+    const t = setup();
     await runInit([], t.output, t.deps);
-    expect(await manifest()).toEqual({ owner_id: ACME.id, services: [] });
+    const printed = t.out.join("\n");
+    expect(printed).toContain("Base URL:       not set");
+    expect(printed).toContain("Test base URL:  not set");
+    expect(printed).toContain(
+      "varis init --base-url <BASE_URL> --test-base-url <TEST_BASE_URL>",
+    );
+    expect(printed).toContain("joined to base_url when you publish and to test_base_url when you run varis test");
+    expect(printed).toContain("https://varis.my/docs/services/endpoints");
   });
 
-  it("asks again after an unusable base URL", async () => {
-    const t = setup([ACME], { inputs: ["http://api.example.com", "https://api.example.com"] });
-    expect(await runInit([], t.output, t.deps)).toBe(0);
-    expect(t.err.join("\n")).toContain("must use https");
-    expect((await manifest()).base_url).toBe("https://api.example.com");
+  it("fills in the command with whichever base URL is already set", async () => {
+    const t = setup();
+    await runInit(["--base-url", "https://api.example.com"], t.output, t.deps);
+    expect(t.out.join("\n")).toContain(
+      "varis init --base-url https://api.example.com --test-base-url <TEST_BASE_URL>",
+    );
+  });
+
+  it("drops the command once both are set", async () => {
+    const t = setup();
+    await runInit(
+      ["--base-url", "https://api.example.com", "--test-base-url", "http://localhost:3000"],
+      t.output,
+      t.deps,
+    );
+    expect(t.out.join("\n")).not.toContain("varis init --base-url");
+  });
+});
+
+describe("--test-base-url", () => {
+  it("accepts a local http address, and never mixes it with base_url", async () => {
+    const t = setup();
+    expect(
+      await runInit(
+        ["--base-url", "https://api.example.com/", "--test-base-url", "http://localhost:3000/"],
+        t.output,
+        t.deps,
+      ),
+    ).toBe(0);
+    const text = await read("varis.json");
+    expect(JSON.parse(text)).toEqual({
+      owner_id: ACME.id,
+      base_url: "https://api.example.com",
+      test_base_url: "http://localhost:3000",
+      services: [],
+    });
+    expect(Object.keys(JSON.parse(text))).toEqual([
+      "owner_id",
+      "base_url",
+      "test_base_url",
+      "services",
+    ]);
+  });
+
+  it("rejects something that isn't a full URL, before signing in", async () => {
+    const t = setup();
+    expect(await runInit(["--test-base-url", "localhost:3000"], t.output, t.deps)).toBe(1);
+    expect(t.err.join("\n")).toContain("--test-base-url");
+    expect(t.signIns()).toBe(0);
+  });
+
+  it("keeps an existing test base URL when not given", async () => {
+    await writeFile(
+      path.join(project, "varis.json"),
+      JSON.stringify({ owner_id: ACME.id, test_base_url: "http://localhost:4000", services: [] }),
+    );
+    const t = setup();
+    await runInit(["--base-url", "https://api.example.com"], t.output, t.deps);
+    expect((await manifest()).test_base_url).toBe("http://localhost:4000");
   });
 });
 
 describe("choosing between owners", () => {
   it("shows the picker with each owner's ID, starting on the current one", async () => {
     await writeFile(path.join(project, "varis.json"), JSON.stringify({ owner_id: BANK.id, services: [] }));
-    const t = setup([ACME, BANK], { select: 0, inputs: [""] });
+    const t = setup([ACME, BANK], { select: 0 });
 
     expect(await runInit([], t.output, t.deps)).toBe(0);
     expect(t.asked[0]).toBe("select: Which owner does this project publish for? [initial 1]");
@@ -246,16 +304,15 @@ describe("an existing project", () => {
   });
 
   it("changes nothing the second time it runs", async () => {
-    const first = setup([ACME], { inputs: ["https://api.example.com"] });
-    await runInit([], first.output, first.deps);
+    const first = setup();
+    await runInit(["--base-url", "https://api.example.com"], first.output, first.deps);
     const before = await Promise.all(["varis.json", "AGENTS.md", "CLAUDE.md"].map(read));
 
-    const second = setup([ACME], { inputs: [""] });
+    const second = setup();
     expect(await runInit([], second.output, second.deps)).toBe(0);
 
     const after = await Promise.all(["varis.json", "AGENTS.md", "CLAUDE.md"].map(read));
     expect(after).toEqual(before);
-    expect(second.asked).toContain("input: Base URL [default https://api.example.com]");
     expect(second.out[0]).toBe("✓ varis.json is already up to date.");
     expect(second.out.join("\n")).not.toContain("AGENTS.md");
   });
