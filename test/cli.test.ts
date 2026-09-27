@@ -8,7 +8,12 @@ import { VERSION } from "../src/lib/version.ts";
 function capture() {
   const out: string[] = [];
   const err: string[] = [];
-  const output: Output = { out: (t) => out.push(t), err: (t) => err.push(t) };
+  const output: Output = {
+    out: (t) => out.push(t),
+    err: (t) => err.push(t),
+    status: (t) => err.push(t),
+    styled: false,
+  };
   return { output, out, err };
 }
 

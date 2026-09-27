@@ -75,7 +75,13 @@ function setup(polls: ApiResult<unknown>[], overrides: Partial<LoginDeps> = {}) 
   const opened: string[] = [];
   const out: string[] = [];
   const err: string[] = [];
-  const output: Output = { out: (t) => out.push(t), err: (t) => err.push(t) };
+  const statuses: string[] = [];
+  const output: Output = {
+    out: (t) => out.push(t),
+    err: (t) => err.push(t),
+    status: (t) => statuses.push(t),
+    styled: overrides.env?.FORCE_COLOR === "1",
+  };
 
   const deps: LoginDeps = {
     env: {},
@@ -91,7 +97,7 @@ function setup(polls: ApiResult<unknown>[], overrides: Partial<LoginDeps> = {}) 
     ...overrides,
   };
 
-  return { deps, calls, slept, opened, out, err, output };
+  return { deps, calls, slept, opened, out, err, statuses, output };
 }
 
 const approved: ApiResult<unknown> = {
@@ -107,8 +113,10 @@ describe("varis login", () => {
     expect(await runLogin([], t.output, t.deps)).toBe(0);
 
     const printed = t.err.join("\n");
+    expect(printed).toContain("Open this link to approve signing in:");
     expect(printed).toContain(CODE.verification_uri_complete);
-    expect(printed).toContain("Code: WDJB-MJHT");
+    expect(printed).toContain("Check the page shows this code: WDJB-MJHT");
+    expect(printed).not.toContain("another device");
     expect(t.opened).toEqual([CODE.verification_uri_complete]);
     expect(t.slept).toEqual([5000, 5000, 5000]);
     expect(await readToken(VARIS_API_ORIGIN, credentials)).toEqual({
@@ -116,9 +124,33 @@ describe("varis login", () => {
       token: NEW_TOKEN,
     });
     expect(t.out).toEqual([
-      "Signed in. This machine can now publish services.",
-      "You can publish for World Bank.",
+      "✓ Signed in. This machine can now publish services.",
+      "",
+      "You can publish for:",
+      "  World Bank (o)",
     ]);
+  });
+
+  it("reports each check, and each pending answer with the wait", async () => {
+    const t = setup([pollError("authorization_pending"), approved]);
+    await runLogin([], t.output, t.deps);
+    expect(t.statuses).toEqual([
+      "Checking for approval…",
+      "Approval still pending. Checking again in 5 seconds…",
+      "Checking for approval…",
+    ]);
+  });
+
+  it("prints the success line in green on a terminal, and plain elsewhere", async () => {
+    const plain = setup([approved]);
+    await runLogin([], plain.output, plain.deps);
+    expect(plain.out[0]).toBe("✓ Signed in. This machine can now publish services.");
+
+    const coloured = setup([approved], { env: { FORCE_COLOR: "1" } });
+    await runLogin([], coloured.output, coloured.deps);
+    expect(coloured.out[0]).toBe(
+      "\x1b[32m✓ Signed in. This machine can now publish services.\x1b[0m",
+    );
   });
 
   it("sends the machine's name, and no credential, to start", async () => {
@@ -146,14 +178,14 @@ describe("varis login", () => {
   it("stops on denial, saving nothing", async () => {
     const t = setup([pollError("access_denied")]);
     expect(await runLogin([], t.output, t.deps)).toBe(1);
-    expect(t.err.join("\n")).toContain("denied");
+    expect(t.err.join("\n")).toContain("The sign-in was denied");
     expect(await readToken(VARIS_API_ORIGIN, credentials)).toEqual({ status: "signed_out" });
   });
 
   it("stops when the server says the code expired", async () => {
     const t = setup([pollError("expired_token")]);
     expect(await runLogin([], t.output, t.deps)).toBe(1);
-    expect(t.err.join("\n")).toContain("Run varis login again");
+    expect(t.err.join("\n")).toContain("The code expired. Run varis login again.");
   });
 
   it("gives up at the code's own expiry, even if the server never says so", async () => {

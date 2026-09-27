@@ -10,7 +10,7 @@
 // Everything this touches is injectable, so the tests run a whole sign-in
 // in milliseconds.
 
-import { type ApiRequestFn, apiRequest } from "../lib/api.ts";
+import { apiRequest, type ApiRequestFn } from "../lib/api.ts";
 import type { Command } from "../lib/command.ts";
 import { apiOrigin, type Env } from "../lib/constants.ts";
 import {
@@ -22,6 +22,7 @@ import {
 } from "../lib/credentials.ts";
 import { canOpenBrowser, deviceName, openBrowser } from "../lib/device.ts";
 import type { Output } from "../lib/output.ts";
+import { bold, dim, failure, success } from "../lib/style.ts";
 
 type DeviceCode = {
   device_code: string;
@@ -76,32 +77,32 @@ export async function runLogin(
   // Kept to revoke once the new sign-in succeeds.
   const previous = await readToken(origin, deps.credentials);
 
-  const started = await deps.request<DeviceCode>("POST", "/v1/cli/device/code", {
-    ...common,
-    auth: "none",
-    body: { device_name: deviceName(deps.env) },
-  });
+  const started = await deps.request<DeviceCode>(
+    "POST",
+    "/v1/cli/device/code",
+    {
+      ...common,
+      auth: "none",
+      body: { device_name: deviceName(deps.env) },
+    },
+  );
   if (!started.ok) {
     output.err(`Couldn't start signing in. ${started.error.message}`);
     return 1;
   }
   const code = started.body;
 
-  output.err("To sign in, open this link and check the code matches:");
+  output.err("Open this link to approve signing in:");
   output.err("");
-  output.err(`  ${code.verification_uri_complete}`);
+  output.err(`  ${bold(output, code.verification_uri_complete)}`);
   output.err("");
-  output.err(`  Code: ${code.user_code}`);
-  output.err("");
-  output.err(
-    `On another device, go to ${code.verification_uri} and enter the code.`,
-  );
+  output.err(`Check the page shows this code: ${bold(output, code.user_code)}`);
 
   if (!args.includes("--no-browser") && deps.canOpenBrowser()) {
     deps.openBrowser(code.verification_uri_complete);
-    output.err("Opened your browser.");
+    output.err("Opened the link in your browser.");
   }
-  output.err("Waiting for approval…");
+  output.err("");
 
   const deadline = deps.now() + code.expires_in * 1000;
   let interval = code.interval || DEFAULT_INTERVAL_SECONDS;
@@ -110,6 +111,7 @@ export async function runLogin(
   while (deps.now() < deadline) {
     await deps.sleep(interval * 1000);
 
+    output.status("Checking for approval…");
     const polled = await deps.request<DeviceToken>(
       "POST",
       "/v1/cli/device/token",
@@ -118,7 +120,7 @@ export async function runLogin(
 
     if (polled.ok) {
       await saveToken(origin, polled.body.access_token, deps.credentials);
-      output.out("Signed in. This machine can now publish services.");
+      output.out(success(output, "Signed in. This machine can now publish services."));
       await revokePrevious(previous, polled.body.access_token, deps);
       await showOwners(output, deps);
       return 0;
@@ -131,23 +133,25 @@ export async function runLogin(
     switch (error.code) {
       case "authorization_pending":
         if (typeof serverInterval === "number") interval = serverInterval;
+        output.status(pendingMessage(interval));
         continue;
       case "slow_down":
         // RFC 8628: add 5 seconds, unless the server says exactly how long.
         interval = typeof serverInterval === "number"
           ? serverInterval
           : interval + 5;
+        output.status(pendingMessage(interval));
         continue;
       case "access_denied":
-        output.err("The sign-in was denied in the browser. Nothing was saved.");
+        output.err(failure(output, "The sign-in was denied. Nothing was saved."));
         return 1;
       case "expired_token":
-        output.err(
-          "The code expired before it was approved. Run varis login again.",
-        );
+        output.err(failure(output, "The code expired. Run varis login again."));
         return 1;
       case "invalid_grant":
-        output.err("This sign-in can't be completed. Run varis login again.");
+        output.err(
+          failure(output, "This sign-in can't be completed. Run varis login again."),
+        );
         return 1;
     }
 
@@ -158,18 +162,24 @@ export async function runLogin(
       error.kind === "rate_limited"
     ) {
       if (!reportedTrouble) {
-        output.err(`Having trouble reaching Varis; still trying. ${error.message}`);
+        output.err(
+          `Having trouble reaching Varis; still trying. ${error.message}`,
+        );
         reportedTrouble = true;
       }
       continue;
     }
 
-    output.err(`Signing in failed. ${error.message}`);
+    output.err(failure(output, `Signing in failed. ${error.message}`));
     return 1;
   }
 
-  output.err("The code expired before it was approved. Run varis login again.");
+  output.err(failure(output, "The code expired. Run varis login again."));
   return 1;
+}
+
+function pendingMessage(intervalSeconds: number): string {
+  return `Approval still pending. Checking again in ${intervalSeconds} seconds…`;
 }
 
 /**
@@ -191,7 +201,10 @@ async function revokePrevious(
   });
 }
 
-/** Names the owners this sign-in can publish for. Best effort. */
+/**
+ * Lists the owners this sign-in can publish for, with their IDs, since two
+ * owners can share a name. Best effort: the sign-in has already worked.
+ */
 async function showOwners(output: Output, deps: LoginDeps): Promise<void> {
   const owners = await deps.request<OwnerList>("GET", "/v1/me/owners", {
     env: deps.env,
@@ -200,12 +213,11 @@ async function showOwners(output: Output, deps: LoginDeps): Promise<void> {
   });
   if (!owners.ok || owners.body.owners.length === 0) return;
 
-  const names = owners.body.owners.map((o) => o.name);
-  output.out(
-    names.length === 1
-      ? `You can publish for ${names[0]}.`
-      : `You can publish for: ${names.join(", ")}.`,
-  );
+  output.out("");
+  output.out("You can publish for:");
+  for (const owner of owners.body.owners) {
+    output.out(`  ${owner.name} ${dim(output, `(${owner.id})`)}`);
+  }
 }
 
 export const login: Command = {
@@ -213,11 +225,12 @@ export const login: Command = {
   summary: "Sign in to Varis on this machine",
   usage: `Usage: varis login [--no-browser]
 
-  Prints a link and a code, and opens your browser when it can. Approve the
-  sign-in there, from any device, and this machine is signed in. One sign-in
-  covers every project on this machine. Signing in again replaces it.
+  Prints a link and opens it in your browser. Approve the sign-in there, and
+  this machine is signed in. One sign-in covers every project on this
+  machine. Signing in again replaces it.
 
-  Works over SSH and in cloud editors: open the link on any device.
+  Over SSH or in a cloud editor, where no browser opens here, open the link
+  in any browser you're signed in to Varis with.
 
   --no-browser  Print the link without opening a browser.`,
   run: (args, output) => runLogin(args, output),

@@ -19,6 +19,7 @@ varis-cli/
 ├── src/lib/cli.ts        The command list, the help text, and the dispatcher.
 ├── src/lib/command.ts    The Command type every command implements.
 ├── src/lib/output.ts     Output: where commands write, so tests can capture it.
+├── src/lib/style.ts      Colour, only on a terminal and never with NO_COLOR.
 ├── src/lib/constants.ts  The API origin, and its VARIS_API_URL override.
 ├── src/lib/credentials.ts  The credentials file: one device token per machine.
 ├── src/lib/api.ts        apiRequest: the one way to call the Varis API.
@@ -66,7 +67,11 @@ To run against a local `varis` app on port 3000:
   0 for success, 1 for a failure the developer can fix, 2 for a crash or a
   usage mistake.
 - Write through `Output`, never `console` or `process.stdout`. Results go to
-  `out`; errors and progress go to `err`.
+  `out`; errors go to `err`; progress that the next update replaces, such as
+  a polling message, goes to `status`.
+- Colour through `src/lib/style.ts` only: `success` (green tick) for a
+  finished command, `failure` (red cross) for a failed one. It is plain text
+  whenever the output isn't a terminal or `NO_COLOR` is set.
 - Messages are plain sentences that say what to do next, for example "Run
   varis login."
 - When a failure is our bug rather than the developer's, print

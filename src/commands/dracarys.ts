@@ -3,7 +3,7 @@ import { type Command, notBuiltYet } from "../lib/command.ts";
 export const dracarys: Command = {
   name: "dracarys",
   summary: "Burn Varis off this machine: sign out, clean this project, uninstall",
-  usage: `Usage: varis dracarys [--yes]
+  usage: `Usage: varis dracarys [--goddamnit]
 
   Asks you to type dracarys to confirm, then:
 
@@ -15,6 +15,6 @@ export const dracarys: Command = {
   Your Varis account and your published services are untouched. Other
   projects on this machine keep their varis.json.
 
-  --yes  Skip the confirmation.`,
+  --goddamnit  Skip the confirmation.`,
   run: notBuiltYet("dracarys", "C7"),
 };
