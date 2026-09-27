@@ -1,7 +1,7 @@
 # Report a problem with the Varis CLI
 
-A report that lets us reproduce the problem gets fixed first. This page
-explains what to include.
+A report that lets us reproduce the problem gets fixed first. This page explains
+what to include.
 
 ## Before you report
 
@@ -22,23 +22,20 @@ The bug report form asks for each of these:
   download, or from source.
 - **The exact command you ran**, with its arguments.
 - **Everything the CLI printed.** Copy the whole output, not a summary.
-- **The request ID**, if the error included one. It starts with `var_req_`
-  and lets us find the request in our logs.
+- **The request ID**, if the error included one. It starts with `var_req_` and
+  lets us find the request in our logs.
 - **What you expected** to happen.
 - **Steps to reproduce**: the smallest set of steps that shows the problem,
   starting from a clean project if you can.
 
-If the problem is with `varis build` or `varis publish`, include your
-project's language and framework, and your `varis.json` with the `owner_id`
-removed.
+If the problem is with `varis build` or `varis publish`, include your project's
+language and framework, and your `varis.json` with the `owner_id` removed.
 
 ## Never include
 
-- Your device token. Tokens start with `var_dt_`.
-- The contents of `credentials.toml`, found in `~/.config/varis/` or
-  `%APPDATA%\varis\`.
-- Agent keys, which start with `var_ak_`, or any other secret from your
-  project.
+- Your device token.
+- The contents of `credentials.toml`, found in systems /configs. directory.
+- Agent keys, or any other secret from your project.
 
 If you pasted a token by mistake, sign that machine out from the Varis
 dashboard, under **Settings > Devices**, and edit the issue to remove it.
