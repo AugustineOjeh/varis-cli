@@ -47,6 +47,12 @@ export type LoginDeps = {
   openBrowser: (url: string) => void;
 };
 
+/** The real dependencies, with any overridden: init shares its own. */
+export const loginDeps = (overrides: Partial<LoginDeps> = {}): LoginDeps => ({
+  ...defaultDeps(),
+  ...overrides,
+});
+
 const defaultDeps = (): LoginDeps => ({
   env: process.env,
   credentials: defaultLocation(),
@@ -120,7 +126,9 @@ export async function runLogin(
 
     if (polled.ok) {
       await saveToken(origin, polled.body.access_token, deps.credentials);
-      output.out(success(output, "Signed in. This machine can now publish services."));
+      output.out(
+        success(output, "Signed in. This machine can now publish services."),
+      );
       await revokePrevious(previous, polled.body.access_token, deps);
       await showOwners(output, deps);
       return 0;
@@ -133,24 +141,29 @@ export async function runLogin(
     switch (error.code) {
       case "authorization_pending":
         if (typeof serverInterval === "number") interval = serverInterval;
-        output.status(pendingMessage(interval));
+        output.status(pendingMessage());
         continue;
       case "slow_down":
         // RFC 8628: add 5 seconds, unless the server says exactly how long.
         interval = typeof serverInterval === "number"
           ? serverInterval
           : interval + 5;
-        output.status(pendingMessage(interval));
+        output.status(pendingMessage());
         continue;
       case "access_denied":
-        output.err(failure(output, "The sign-in was denied. Nothing was saved."));
+        output.err(
+          failure(output, "The sign-in was denied. Nothing was saved."),
+        );
         return 1;
       case "expired_token":
         output.err(failure(output, "The code expired. Run varis login again."));
         return 1;
       case "invalid_grant":
         output.err(
-          failure(output, "This sign-in can't be completed. Run varis login again."),
+          failure(
+            output,
+            "This sign-in can't be completed. Run varis login again.",
+          ),
         );
         return 1;
     }
@@ -178,8 +191,8 @@ export async function runLogin(
   return 1;
 }
 
-function pendingMessage(intervalSeconds: number): string {
-  return `Approval still pending. Checking again in ${intervalSeconds} seconds…`;
+function pendingMessage(): string {
+  return `Approval still pending. Approve in the browser. If you have, please wait. Checking again…`;
 }
 
 /**

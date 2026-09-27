@@ -25,6 +25,10 @@ varis-cli/
 ├── src/lib/api.ts        apiRequest: the one way to call the Varis API.
 ├── src/lib/issues.ts     Pre-filled GitHub issue links for bugs.
 ├── src/lib/device.ts     The machine's name, and whether a browser can open.
+├── src/lib/prompt.ts     The arrow-key list and text prompt; Prompter for tests.
+├── src/lib/manifest.ts   Reads and writes varis.json, keeping keys it doesn't own.
+├── src/lib/base-url.ts   The publish rules for varis.json's base_url.
+├── src/lib/agent-instructions.ts  The AGENTS.md block and CLAUDE.md import.
 ├── src/lib/version.ts    The version.
 └── test/                 Vitest suites.
 ```
@@ -74,6 +78,11 @@ To run against a local `varis` app on port 3000:
   whenever the output isn't a terminal or `NO_COLOR` is set.
 - Messages are plain sentences that say what to do next, for example "Run
   varis login."
+- Ask questions through a `Prompter`, and only when `prompter.interactive`
+  is true. Without a terminal, use the command's flags or fail with a
+  message naming the flag; never wait for input that can't arrive.
+- Check everything, and ask every question, before writing anything. A
+  cancelled prompt or a bad flag leaves the project as it was.
 - When a failure is our bug rather than the developer's, print
   `reportLines()` from `src/lib/issues.ts`: a pre-filled GitHub issue link
   and the reporting guide. Never ask developers to "contact us".

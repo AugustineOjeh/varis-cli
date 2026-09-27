@@ -131,12 +131,12 @@ describe("varis login", () => {
     ]);
   });
 
-  it("reports each check, and each pending answer with the wait", async () => {
+  it("reports each check, and each pending answer", async () => {
     const t = setup([pollError("authorization_pending"), approved]);
     await runLogin([], t.output, t.deps);
     expect(t.statuses).toEqual([
       "Checking for approval…",
-      "Approval still pending. Checking again in 5 seconds…",
+      "Approval still pending. Approve in the browser. If you have, please wait. Checking again…",
       "Checking for approval…",
     ]);
   });

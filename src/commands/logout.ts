@@ -40,14 +40,16 @@ export async function runLogout(
   const stored = await readCredentials(deps.credentials);
 
   if (stored.status === "signed_out") {
-    output.out("This machine isn't signed in. Nothing to do.");
+    output.out(`"This machine isn't signed in," says Grey Worm.`);
     return 0;
   }
 
   if (stored.status === "corrupt") {
     // No token can be read out of it, so there is nothing to revoke.
     await deleteToken(deps.credentials);
-    output.out(success(output, `Removed a damaged credentials file at ${stored.path}.`));
+    output.out(
+      success(output, `Removed a damaged credentials file at ${stored.path}.`),
+    );
     return 0;
   }
 
