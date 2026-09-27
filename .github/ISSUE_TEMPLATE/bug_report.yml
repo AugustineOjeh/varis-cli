@@ -1,0 +1,84 @@
+name: Bug report
+description: The varis CLI did something wrong, crashed, or printed an error it shouldn't have.
+title: "[bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting. If the CLI sent you here, it filled in what it
+        knows. Add what only you know: what you ran, what you expected, and
+        what happened instead.
+
+        Read [how to write a report we can act on](https://github.com/AugustineOjeh/varis-cli/blob/main/docs/reporting-issues.md)
+        first. **Never paste your device token or the contents of
+        credentials.toml.** Tokens start with `var_dt_`.
+  - type: input
+    id: version
+    attributes:
+      label: CLI version
+      description: The output of `varis --version`.
+      placeholder: "0.1.0"
+    validations:
+      required: true
+  - type: input
+    id: os
+    attributes:
+      label: Operating system and architecture
+      description: For example "darwin arm64", "linux x64", or "win32 x64".
+    validations:
+      required: true
+  - type: dropdown
+    id: install
+    attributes:
+      label: How you installed the CLI
+      options:
+        - Homebrew
+        - Scoop
+        - Install script (curl or PowerShell)
+        - Downloaded from GitHub Releases
+        - Built from source
+    validations:
+      required: true
+  - type: input
+    id: command
+    attributes:
+      label: The command you ran
+      placeholder: varis publish weather
+    validations:
+      required: true
+  - type: input
+    id: project_language
+    attributes:
+      label: Your project's language and framework
+      description: What varis build was reading, if it matters. For example "TypeScript, Next.js 16".
+  - type: textarea
+    id: output
+    attributes:
+      label: What the CLI printed
+      description: The full output, including any error. Remove tokens and other secrets first.
+      render: shell
+    validations:
+      required: true
+  - type: input
+    id: request_id
+    attributes:
+      label: Request ID
+      description: If the error included one (it starts with `var_req_`). It lets us find the request on our side.
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected to happen
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: The smallest set of steps that shows the problem. A varis.json with its owner_id removed helps if the problem is with build or publish.
+      placeholder: |
+        1. varis login
+        2. varis init
+        3. varis publish
+    validations:
+      required: true
