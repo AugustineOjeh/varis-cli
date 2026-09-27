@@ -20,6 +20,7 @@ varis-cli/
 ├── src/lib/output.ts     Output: where commands write, so tests can capture it.
 ├── src/lib/constants.ts  The API origin, and its VARIS_API_URL override.
 ├── src/lib/credentials.ts  The credentials file: one device token per machine.
+├── src/lib/api.ts        apiRequest: the one way to call the Varis API.
 ├── src/lib/version.ts    The version.
 └── test/                 Vitest suites.
 ```
@@ -65,8 +66,10 @@ To run against a local `varis` app on port 3000:
 
 ### The API
 
-- The API hostname lives only in `src/lib/constants.ts`. Build every URL with
-  `apiOrigin()`.
+- The API hostname lives only in `src/lib/constants.ts`. Call the API only
+  through `apiRequest` in `src/lib/api.ts`, which builds URLs with
+  `apiOrigin()`, attaches the token and owner, and turns every failure into an
+  `ApiError` with a message ready to print.
 - The API contract is `openapi.yaml` in the `varis-ts` repository.
 - Send the user token as `Authorization: Bearer` and the owner as
   `X-Varis-Owner-Identifier`. Never read `owner_id` or a user ID from anywhere
