@@ -19,6 +19,7 @@ varis-cli/
 ├── src/lib/command.ts    The Command type every command implements.
 ├── src/lib/output.ts     Output: where commands write, so tests can capture it.
 ├── src/lib/constants.ts  The API origin, and its VARIS_API_URL override.
+├── src/lib/credentials.ts  The credentials file: one device token per API origin.
 ├── src/lib/version.ts    The version.
 └── test/                 Vitest suites.
 ```
