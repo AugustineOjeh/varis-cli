@@ -2,15 +2,20 @@
 #
 #   git tag v0.2.0 && git push origin v0.2.0
 #
-# Three jobs, in order:
+# Four jobs, in order:
 #   validate  The tag must look like v1.2.3 (or v1.2.3-rc.1) and point at a
 #             commit already on main, so nothing unreviewed ships.
 #   build     build.yml, with the version stamped in from the tag: tests,
 #             all five binaries compiled, each smoke-tested on its own
 #             platform. Nothing is released unless every one passes.
-#   publish   Renames the binaries for download, writes SHA256SUMS, and
-#             creates the GitHub release with notes generated from the
+#   publish   Packs each binary into its own archive, writes SHA256SUMS,
+#             and creates the GitHub release with notes generated from the
 #             merged pull requests.
+#   install   Runs install.sh or install.ps1 on each platform against the
+#             release just published, and checks the installed varis
+#             reports the tag's version. It runs after publishing because
+#             the installers download from the release itself; if it fails,
+#             mark the release as a pre-release and fix forward.
 #
 # A tag with a suffix, such as v0.2.0-rc.1, makes a pre-release. GitHub never
 # marks a pre-release as latest, so the install script, `varis upgrade`, and
@@ -18,8 +23,13 @@
 #
 # The release assets, which the install scripts, Homebrew, and Scoop
 # download by these exact names:
-#   varis-darwin-arm64  varis-darwin-x64  varis-linux-x64  varis-linux-arm64
-#   varis-windows-x64.exe  SHA256SUMS
+#   varis-darwin-arm64.tar.gz  varis-darwin-x64.tar.gz
+#   varis-linux-x64.tar.gz     varis-linux-arm64.tar.gz
+#   varis-windows-x64.zip      SHA256SUMS
+# Each archive holds one file at its root: varis, or varis.exe on Windows.
+# One archive per platform, so each machine downloads only its own, about
+# half the size of the bare binary. tar keeps the executable bit, which a
+# bare download loses.
 
 name: Release
 
@@ -86,15 +96,32 @@ jobs:
           pattern: varis-*
           path: artifacts
 
-      # Each binary gets its platform in its name, so one release can hold
-      # all five. Installers rename it back to varis (or varis.exe).
-      - name: Name the binaries and write checksums
+      # One archive per platform, named for it, holding the binary under the
+      # name developers run: varis, or varis.exe. Artifacts lose the
+      # executable bit on upload, so it's set again before packing, and tar
+      # keeps it from here on. Windows has no executable bit and expects a
+      # zip. The macOS signature is part of the file, so it survives.
+      - name: Pack the binaries and write checksums
         run: |
           mkdir release
           for target in darwin-arm64 darwin-x64 linux-x64 linux-arm64; do
-            cp "artifacts/varis-$target/varis" "release/varis-$target"
+            chmod +x "artifacts/varis-$target/varis"
+            tar -C "artifacts/varis-$target" -cf - varis | gzip -9 >"release/varis-$target.tar.gz"
           done
-          cp artifacts/varis-windows-x64/varis.exe release/varis-windows-x64.exe
+          (cd artifacts/varis-windows-x64 && zip -9 -X ../../release/varis-windows-x64.zip varis.exe)
+
+          # Unpack each archive again and compare it with the binary that
+          # passed the smoke test, so a packing mistake can't ship.
+          check="$(mktemp -d)"
+          for target in darwin-arm64 darwin-x64 linux-x64 linux-arm64; do
+            mkdir "$check/$target"
+            tar -C "$check/$target" -xzf "release/varis-$target.tar.gz"
+            cmp "$check/$target/varis" "artifacts/varis-$target/varis"
+            [ -x "$check/$target/varis" ]
+          done
+          unzip -q release/varis-windows-x64.zip -d "$check/windows-x64"
+          cmp "$check/windows-x64/varis.exe" artifacts/varis-windows-x64/varis.exe
+
           cd release
           # sha256sum's own format, so `sha256sum -c` and
           # `shasum -a 256 -c` both check it as is.
@@ -116,3 +143,51 @@ jobs:
             --title "varis $VERSION" \
             --generate-notes \
             "${prerelease[@]}"
+
+  install:
+    needs: [validate, publish]
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-latest
+            shell: bash
+          - runner: macos-15-intel
+            shell: bash
+          - runner: ubuntu-latest
+            shell: bash
+          - runner: ubuntu-24.04-arm
+            shell: bash
+          # Windows PowerShell 5.1, not PowerShell 7: it's what every
+          # Windows machine has, and the older of the two.
+          - runner: windows-latest
+            shell: powershell
+    runs-on: ${{ matrix.runner }}
+    defaults:
+      run:
+        shell: ${{ matrix.shell }}
+    env:
+      # Pins the installer to this release, since a pre-release is never
+      # the latest.
+      VARIS_VERSION: ${{ needs.validate.outputs.version }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install with install.sh
+        if: matrix.shell == 'bash'
+        run: |
+          sh install.sh
+          installed="$("$HOME/.varis/bin/varis" --version)"
+          echo "installed $installed"
+          [ "$installed" = "$VARIS_VERSION" ]
+
+      - name: Install with install.ps1
+        if: matrix.shell == 'powershell'
+        run: |
+          .\install.ps1
+          $installed = & "$HOME\.varis\bin\varis.exe" --version
+          Write-Output "installed $installed"
+          if ($installed -ne $env:VARIS_VERSION) { exit 1 }
+          # The installer added the folder to the user's PATH.
+          $userPath = [Environment]::GetEnvironmentVariable("Path", "User")
+          if ($userPath -notlike "*\.varis\bin*") { exit 1 }

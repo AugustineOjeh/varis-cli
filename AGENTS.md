@@ -35,6 +35,8 @@ varis-cli/
 ├── src/lib/query-string.ts  GET input as a query string, exactly as the gateway.
 ├── src/lib/schema.ts     JSON Schema validation, configured like the gateway.
 ├── src/lib/version.ts    The version.
+├── install.sh            Installer for macOS and Linux (POSIX sh, not bash).
+├── install.ps1           Installer for Windows (Windows PowerShell 5.1).
 ├── scripts/smoke-test.sh  Checks one compiled binary runs without Node.js.
 ├── .github/workflows/check.yml  Type check and tests, on every pull request to main.
 ├── .github/workflows/build.yml  Compiles all five binaries and smoke-tests each.
@@ -65,7 +67,9 @@ version on `main`, runs `build.yml` with that version stamped into
 `src/lib/version.ts`, and publishes the five binaries and `SHA256SUMS` as a
 GitHub release. A tag like `v0.2.0-rc.1` makes a pre-release, which nothing
 installs by default. Never bump `src/lib/version.ts` by hand, and never
-rename the release assets: the installers download them by name.
+rename the release assets: the installers download them by name. The
+installers put `varis` in `~/.varis/bin`; `varis upgrade` and
+`varis dracarys` recognise an install-script copy by that folder.
 
 ## Rules
 

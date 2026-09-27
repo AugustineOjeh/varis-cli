@@ -26,8 +26,26 @@ Run `varis <command> --help` for details.
 
 ## Install
 
-Coming soon: an install script, Homebrew, and Scoop. The CLI is a single
-binary and doesn't need Node.js.
+The CLI is a single binary and doesn't need Node.js. Homebrew and Scoop are
+coming soon.
+
+On macOS or Linux:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/AugustineOjeh/varis-cli/main/install.sh | sh
+```
+
+On Windows, in PowerShell:
+
+```powershell
+irm https://raw.githubusercontent.com/AugustineOjeh/varis-cli/main/install.ps1 | iex
+```
+
+Either installs `varis` into `.varis/bin` in your home folder, checks the
+download against the release's `SHA256SUMS`, and adds the folder to your
+`PATH`. To install a particular version, set `VARIS_VERSION` first, for
+example `VARIS_VERSION=0.2.0`. Each script's header lists its other
+settings.
 
 ## Report a problem
 

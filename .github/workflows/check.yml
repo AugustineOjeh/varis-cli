@@ -33,3 +33,15 @@ jobs:
       - run: npm ci
       - run: npm run typecheck
       - run: npm test
+
+      # The install scripts run on developers' machines before anything else
+      # is installed, so a syntax error in either breaks every install.
+      # Parsing catches that here; release.yml runs them for real.
+      - name: Parse the install scripts
+        run: |
+          sh -n install.sh
+          pwsh -NoProfile -Command '
+            $errors = $null
+            [System.Management.Automation.Language.Parser]::ParseFile("install.ps1", [ref]$null, [ref]$errors) | Out-Null
+            if ($errors) { $errors | ForEach-Object { Write-Error $_.ToString() }; exit 1 }
+            "install.ps1 parses"'
