@@ -3,15 +3,23 @@ import { init } from "../commands/init.ts";
 import { login } from "../commands/login.ts";
 import { logout } from "../commands/logout.ts";
 import { publish } from "../commands/publish.ts";
+import { test } from "../commands/test.ts";
 import type { Command } from "./command.ts";
 import type { Output } from "./output.ts";
 import { VERSION } from "./version.ts";
 
 /**
- * The five commands, in the order a new developer meets them. Any new command
+ * The six commands, in the order a new developer meets them. Any new command
  * needs a scope decision first (see project.md in the varis repository).
  */
-export const COMMANDS: readonly Command[] = [login, init, build, publish, logout];
+export const COMMANDS: readonly Command[] = [
+  login,
+  init,
+  build,
+  publish,
+  test,
+  logout,
+];
 
 const HELP_FLAGS = new Set(["-h", "--help"]);
 const VERSION_FLAGS = new Set(["-v", "--version"]);
@@ -21,7 +29,7 @@ export function helpText(): string {
   const commands = COMMANDS.map((c) => `  ${c.name.padEnd(width)}  ${c.summary}`)
     .join("\n");
 
-  return `varis ${VERSION}: publish services that AI agents pay to call.
+  return `varis ${VERSION}: publish services that AI agents pay for.
 
 Usage: varis <command> [options]
 

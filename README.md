@@ -16,7 +16,8 @@ definitions, and publishes them.
 | `varis login` | Sign in to Varis on this machine. |
 | `varis init` | Set up `varis.json` in this project. |
 | `varis build` | Update `varis.json` from the services defined in your code. |
-| `varis publish` | Build, then publish every service in `varis.json`. |
+| `varis publish [slug]` | Build, then publish every service in `varis.json`, or only one. |
+| `varis test <slug>` | Call a published service and show what it returns. Free. |
 | `varis logout` | Sign this machine out of Varis. |
 
 Run `varis <command> --help` for details.

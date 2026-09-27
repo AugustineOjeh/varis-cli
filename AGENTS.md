@@ -14,7 +14,7 @@ never need Node.js to run it.
 ```
 varis-cli/
 ├── src/cli.ts            The entry point. The only file that touches the process.
-├── src/commands/         One file per command: login, init, build, publish, logout.
+├── src/commands/         One file per command: login, init, build, publish, test, logout.
 ├── src/lib/cli.ts        The command list, the help text, and the dispatcher.
 ├── src/lib/command.ts    The Command type every command implements.
 ├── src/lib/output.ts     Output: where commands write, so tests can capture it.
@@ -53,8 +53,8 @@ To run against a local `varis` app on port 3000:
 
 ### Commands
 
-- The CLI has exactly five commands: `login`, `init`, `build`, `publish`, and
-  `logout`. Any new command needs a scope decision first.
+- The CLI has exactly six commands: `login`, `init`, `build`, `publish`,
+  `test`, and `logout`. Any new command needs a scope decision first.
 - A command's `run` returns its exit code and never calls `process.exit`:
   0 for success, 1 for a failure the developer can fix, 2 for a crash or a
   usage mistake.
