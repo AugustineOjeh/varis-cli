@@ -10,7 +10,7 @@
 // edit-and-republish loop.
 
 import { parseArgs } from "node:util";
-import { apiRequest, type ApiError, type ApiRequestFn } from "../lib/api.ts";
+import { type ApiError, apiRequest, type ApiRequestFn } from "../lib/api.ts";
 import type { Command } from "../lib/command.ts";
 import { apiOrigin, type Env } from "../lib/constants.ts";
 import {
@@ -55,10 +55,24 @@ const defaultDeps = (): PublishDeps => {
     prompter,
     run: runCommand,
     setUp: (output) =>
-      runInit([], output, initDeps({ cwd, env, credentials, prompter, signIn })),
+      runInit(
+        [],
+        output,
+        initDeps({ cwd, env, credentials, prompter, signIn }),
+      ),
     signIn,
   };
 };
+
+/**
+ * One service as varis build wrote it into varis.json: every field the API's
+ * ServiceInput takes (slug, name, description, service_type, categories,
+ * endpoint_url, method, price_cents, version, status, input_schema,
+ * output_schema). The CLI reads only `slug`, for its messages and the slug
+ * filter, and sends the whole object as written, so a field the generator
+ * adds later reaches the API without a CLI release.
+ */
+type ManifestService = { slug?: unknown; [field: string]: unknown };
 
 type Published = { id: string; slug: string; unchanged?: boolean };
 
@@ -94,7 +108,11 @@ export async function runPublish(
     }
     only = positionals[0];
   } catch (error) {
-    output.err(`${error instanceof Error ? error.message : error} Run varis publish --help.`);
+    output.err(
+      `${
+        error instanceof Error ? error.message : error
+      } Run varis publish --help.`,
+    );
     return 2;
   }
 
@@ -117,7 +135,11 @@ export async function runPublish(
     }
   }
 
-  const built = await buildProject(output, { cwd: deps.cwd, env: deps.env, run: deps.run });
+  const built = await buildProject(output, {
+    cwd: deps.cwd,
+    env: deps.env,
+    run: deps.run,
+  });
   if (built?.kind !== "built") {
     output.err("Nothing was published.");
     return 1;
@@ -125,25 +147,32 @@ export async function runPublish(
 
   const found = await readManifest(deps.cwd);
   if (found.status !== "found" || !found.manifest.owner_id) {
-    output.err(failure(output, `${MANIFEST_FILE} has no owner_id. Run varis init.`));
+    output.err(
+      failure(output, `${MANIFEST_FILE} has no owner_id. Run varis init.`),
+    );
     return 1;
   }
   const owner = found.manifest.owner_id;
-  const all = (found.manifest.services ?? []) as { slug?: unknown }[];
+  const all = (found.manifest.services ?? []) as ManifestService[];
 
   let services = all;
   if (only !== undefined) {
     services = all.filter((s) => s.slug === only);
     if (services.length === 0) {
-      output.err(failure(output, `No service with the slug ${only} in ${MANIFEST_FILE}.`));
-      const slugs = all.map((s) => String(s.slug));
-      if (slugs.length > 0) output.err(`It has: ${slugs.join(", ")}.`);
+      output.err(
+        failure(
+          output,
+          `${MANIFEST_FILE} does not have a service with the slug ${only}.`,
+        ),
+      );
       return 1;
     }
   }
 
   if (services.length === 0) {
-    output.out("No services to publish. Define one with the Varis SDK, then run varis publish.");
+    output.out(
+      "No services to publish. Define one with the Varis SDK, then run `varis publish`.",
+    );
     return 0;
   }
 
@@ -156,6 +185,7 @@ export async function runPublish(
     const sent = await deps.request<Published>("POST", "/v1/services", {
       auth: "device",
       owner,
+      // The whole service, every field, exactly as varis.json holds it.
       body: service,
       env: deps.env,
       credentials: deps.credentials,
@@ -178,7 +208,11 @@ export async function runPublish(
     if (result.outcome === "failed" && STOPPING_KINDS.has(result.error.kind)) {
       const left = services.length - results.length;
       if (left > 0) {
-        output.err(`Stopped. ${left} service${left === 1 ? " wasn't" : "s weren't"} sent.`);
+        output.err(
+          `Stopped. ${left} service${
+            left === 1 ? " wasn't" : "s weren't"
+          } sent.`,
+        );
       }
       break;
     }
@@ -215,7 +249,9 @@ function summarise(results: Result[], total: number, output: Output): number {
   ].filter(([, n]) => (n as number) > 0).map(([word, n]) => `${n} ${word}`);
 
   output.out("");
-  const line = `${total} service${total === 1 ? "" : "s"}: ${parts.join(", ")}.`;
+  const line = `${total} service${total === 1 ? "" : "s"}: ${
+    parts.join(", ")
+  }.`;
   output.out(failed > 0 ? failure(output, line) : success(output, line));
   return failed > 0 ? 1 : 0;
 }

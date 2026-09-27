@@ -11,7 +11,21 @@ import type { Output } from "../src/lib/output.ts";
 
 const TOKEN = `var_dt_${"a".repeat(40)}`;
 const OWNER = "var_ownr_aaaaaaaaaaaaaa";
-const WEATHER = { slug: "weather", endpoint_url: "https://api.example.com/weather", price_cents: 3 };
+/** A complete service, as varis build writes it into varis.json. */
+const WEATHER = {
+  slug: "weather",
+  name: "Weather",
+  description: "Current temperature for any city, in Celsius.",
+  service_type: "data",
+  categories: ["science"],
+  endpoint_url: "https://api.example.com/weather",
+  method: "GET",
+  price_cents: 3,
+  version: "1.0.0",
+  status: "published",
+  input_schema: { type: "object", properties: { city: { type: "string" } }, required: ["city"] },
+  output_schema: { type: "object", properties: { temp_c: { type: "number" } }, required: ["temp_c"] },
+};
 const NEWS = { slug: "news", endpoint_url: "https://api.example.com/news", price_cents: 0 };
 
 let project: string;
@@ -121,7 +135,10 @@ describe("varis publish", () => {
     expect(await runPublish([], t.output, t.deps)).toBe(0);
 
     expect(s.calls.map((c) => c.path)).toEqual(["/v1/services", "/v1/services"]);
-    expect(s.calls[0]!.options).toMatchObject({ auth: "device", owner: OWNER, body: WEATHER });
+    expect(s.calls[0]!.options).toMatchObject({ auth: "device", owner: OWNER });
+    // Every field, exactly as varis.json holds it, not just the slug.
+    expect(s.calls[0]!.options.body).toEqual(WEATHER);
+    expect(Object.keys(s.calls[0]!.options.body as object)).toHaveLength(12);
     expect(t.out).toContain("✓ weather  created (var_srvc_weather)");
     expect(t.out).toContain("✓ news  created (var_srvc_news)");
     expect(t.out.at(-1)).toBe("✓ 2 services: 2 created.");
@@ -162,11 +179,13 @@ describe("varis publish", () => {
     expect((s.calls[0]!.options.body as { slug: string }).slug).toBe("news");
   });
 
-  it("names the slugs it has when the named one isn't there", async () => {
+  it("says when the named service isn't in varis.json, publishing nothing", async () => {
     await initialised();
-    const t = setup(generator([WEATHER, NEWS]), server().request);
+    const s = server();
+    const t = setup(generator([WEATHER, NEWS]), s.request);
     expect(await runPublish(["wether"], t.output, t.deps)).toBe(1);
-    expect(t.err.join("\n")).toContain("It has: weather, news.");
+    expect(t.err.join("\n")).toContain("does not have a service with the slug wether");
+    expect(s.calls).toEqual([]);
   });
 
   it("publishes nothing if the build fails", async () => {
