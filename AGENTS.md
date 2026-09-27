@@ -30,6 +30,10 @@ varis-cli/
 ├── src/lib/base-url.ts   The publish rules for varis.json's base_url.
 ├── src/lib/agent-instructions.ts  The AGENTS.md block and CLAUDE.md import.
 ├── src/lib/generator.ts  Language markers, running a generator, reading its contract.
+├── src/lib/test-signing.ts  varis test's throwaway signing key and loopback key
+│                         listener. Must match the SDK's constants.
+├── src/lib/query-string.ts  GET input as a query string, exactly as the gateway.
+├── src/lib/schema.ts     JSON Schema validation, configured like the gateway.
 ├── src/lib/version.ts    The version.
 └── test/                 Vitest suites.
 ```
@@ -63,6 +67,8 @@ To run `varis build` against a local generator instead of the npm package:
   no parameter properties. `erasableSyntaxOnly` enforces it.
 - Add no runtime dependencies without a strong reason. Every one ships inside
   the binary.
+  The only ones are `ajv` and `ajv-formats`, so `varis test` validates
+  exactly as the gateway does.
 
 ### Commands
 
@@ -91,6 +97,10 @@ To run `varis build` against a local generator instead of the npm package:
   `reportLines()` from `src/lib/issues.ts`: a pre-filled GitHub issue link
   and the reporting guide. Never ask developers to "contact us".
 - The repository URL lives only in `src/lib/constants.ts`.
+- `varis test` calls only the developer's own server, at `test_base_url`,
+  never the Varis API or a production address. Its signing mechanism is
+  explained in `src/lib/test-signing.ts`; change it only together with
+  `verify.ts` in the `varis-ts` SDK.
 
 ### The API
 

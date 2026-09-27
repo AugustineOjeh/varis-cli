@@ -17,7 +17,7 @@ definitions, and publishes them.
 | `varis init` | Set up `varis.json` in this project. |
 | `varis build` | Update `varis.json` from the services defined in your code. |
 | `varis publish [slug]` | Build, then publish every service in `varis.json`, or only one. |
-| `varis test <slug>` | Call a published service and show what it returns. Free. |
+| `varis test <slug>` | Call a service on your own server, as Varis would, before publishing. |
 | `varis logout` | Sign this machine out of Varis. |
 | `varis upgrade` | Upgrade the CLI to the latest stable version. |
 | `varis dracarys` | Burn Varis off this machine: sign out, clean this project, uninstall. |
