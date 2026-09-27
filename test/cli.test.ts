@@ -68,7 +68,7 @@ describe("varis", () => {
 
   it("reports a command that isn't built yet, exiting 1", async () => {
     const { output, err } = capture();
-    expect(await runCli(["build"], output)).toBe(1);
+    expect(await runCli(["test"], output)).toBe(1);
     expect(err.join("\n")).toContain("isn't built yet");
   });
 });

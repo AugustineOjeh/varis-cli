@@ -35,3 +35,11 @@ export const ISSUES_URL = `${REPOSITORY_URL}/issues`;
 /** How to write a report we can act on. */
 export const REPORTING_GUIDE_URL =
   `${REPOSITORY_URL}/blob/main/docs/reporting-issues.md`;
+
+/**
+ * Where the SDKs and their generators live. A generator crash in varis build
+ * is reported there, not here.
+ */
+export const SDK_REPOSITORY_URL = "https://github.com/AugustineOjeh/varis-ts";
+
+export const SDK_ISSUES_URL = `${SDK_REPOSITORY_URL}/issues`;

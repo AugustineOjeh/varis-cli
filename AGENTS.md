@@ -29,6 +29,7 @@ varis-cli/
 ├── src/lib/manifest.ts   Reads and writes varis.json, keeping keys it doesn't own.
 ├── src/lib/base-url.ts   The publish rules for varis.json's base_url.
 ├── src/lib/agent-instructions.ts  The AGENTS.md block and CLAUDE.md import.
+├── src/lib/generator.ts  Language markers, running a generator, reading its contract.
 ├── src/lib/version.ts    The version.
 └── test/                 Vitest suites.
 ```
@@ -43,6 +44,9 @@ varis-cli/
 
 To run against a local `varis` app on port 3000:
 `VARIS_API_URL=http://localhost:3000/api npm run varis -- login`.
+
+To run `varis build` against a local generator instead of the npm package:
+`VARIS_BUILD_COMMAND="node ~/dev/Projects/varis-ts/packages/build/dist/cli.js"`.
 
 ## Rules
 
