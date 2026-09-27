@@ -31,16 +31,30 @@ export function shouldStyle(
   return stream.isTTY === true;
 }
 
+/** Removes colour codes, which take no space on screen. */
+const visible = (text: string) => text.replace(/\x1b\[[0-9;]*m/g, "");
+
+/**
+ * How many screen rows `text` takes in a terminal `columns` wide. A line
+ * wider than the terminal wraps onto more rows, and all of them must be
+ * cleared, or each update leaves the earlier rows behind.
+ */
+export function rowsFor(text: string, columns: number): number {
+  const width = Math.max(columns, 1);
+  return Math.max(1, Math.ceil(visible(text).length / width));
+}
+
 function createProcessOutput(): Output {
   const live = process.stderr.isTTY === true;
-  let statusShown = false;
+  /** Rows the current status line takes, or 0 when none is shown. */
+  let statusRows = 0;
 
   // Ends a status line before anything else is written, so it isn't
   // overwritten mid-line.
   const endStatus = () => {
-    if (statusShown) {
+    if (statusRows > 0) {
       process.stderr.write("\n");
-      statusShown = false;
+      statusRows = 0;
     }
   };
 
@@ -54,13 +68,15 @@ function createProcessOutput(): Output {
       process.stderr.write(`${text}\n`);
     },
     status: (text) => {
-      if (live) {
-        // Carriage return, then clear the line, then write over it.
-        process.stderr.write(`\r\x1b[2K${text}`);
-        statusShown = true;
-      } else {
+      if (!live) {
         process.stderr.write(`${text}\n`);
+        return;
       }
+      // Back to the first row of the previous status, however many rows it
+      // wrapped onto, clear from there down, then write the new one.
+      const up = statusRows > 1 ? `\x1b[${statusRows - 1}A` : "";
+      process.stderr.write(`\r${up}\x1b[J${text}`);
+      statusRows = rowsFor(text, process.stderr.columns ?? 80);
     },
     styled: shouldStyle(process.stderr),
   };
