@@ -4,14 +4,18 @@ import { login } from "../commands/login.ts";
 import { logout } from "../commands/logout.ts";
 import { publish } from "../commands/publish.ts";
 import { test } from "../commands/test.ts";
+import { upgrade } from "../commands/upgrade.ts";
+import { dracarys } from "../commands/dracarys.ts";
 import type { Command } from "./command.ts";
 import type { Output } from "./output.ts";
 import { reportLines } from "./issues.ts";
 import { VERSION } from "./version.ts";
 
 /**
- * The six commands, in the order a new developer meets them. Any new command
- * needs a scope decision first (see project.md in the varis repository).
+ * The eight commands: the six a developer uses to ship a service, in the
+ * order they meet them, then the two that look after the CLI itself. Any new
+ * command needs a scope decision first (see project.md in the varis
+ * repository).
  */
 export const COMMANDS: readonly Command[] = [
   login,
@@ -20,6 +24,8 @@ export const COMMANDS: readonly Command[] = [
   publish,
   test,
   logout,
+  upgrade,
+  dracarys,
 ];
 
 const HELP_FLAGS = new Set(["-h", "--help"]);

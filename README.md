@@ -19,6 +19,8 @@ definitions, and publishes them.
 | `varis publish [slug]` | Build, then publish every service in `varis.json`, or only one. |
 | `varis test <slug>` | Call a published service and show what it returns. Free. |
 | `varis logout` | Sign this machine out of Varis. |
+| `varis upgrade` | Upgrade the CLI to the latest stable version. |
+| `varis dracarys` | Burn Varis off this machine: sign out, clean this project, uninstall. |
 
 Run `varis <command> --help` for details.
 

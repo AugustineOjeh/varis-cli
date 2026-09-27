@@ -13,7 +13,7 @@ function capture() {
 }
 
 describe("varis", () => {
-  it("lists exactly the six commands, in order", () => {
+  it("lists exactly the eight commands, in order", () => {
     expect(COMMANDS.map((c) => c.name)).toEqual([
       "login",
       "init",
@@ -21,6 +21,8 @@ describe("varis", () => {
       "publish",
       "test",
       "logout",
+      "upgrade",
+      "dracarys",
     ]);
   });
 
