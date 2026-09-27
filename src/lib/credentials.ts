@@ -3,11 +3,17 @@
 //   macOS, Linux  ~/.config/varis/credentials.toml, or $XDG_CONFIG_HOME/varis
 //   Windows       %APPDATA%\varis\credentials.toml
 //
-// One token per API origin, so a token from a local app is never sent to
-// production, and a developer can be signed in to both at once:
+// One token per machine. It identifies the developer, not a project or an
+// owner, so it covers every project and every owner they belong to. Signing
+// in again replaces it.
 //
-//   ["https://api.varis.my"]
 //   token = "var_dt_..."
+//   api = "https://api.varis.my"
+//
+// `api` records the Varis server that issued the token. If the CLI is
+// pointed somewhere else, which only happens when working on Varis itself
+// against a local app, the token reads as belonging elsewhere and is never
+// sent to the wrong server.
 //
 // The shape is fixed, so a small strict parser reads it rather than a TOML
 // library. Anything that doesn't match reads as corrupt, never as a crash.
@@ -33,8 +39,18 @@ export const defaultLocation = (): CredentialsLocation => ({
   home: os.homedir(),
 });
 
+/** What the credentials file holds. */
+export type Credentials = { token: string; api: string };
+
+export type CredentialsResult =
+  | { status: "signed_in"; credentials: Credentials }
+  | { status: "signed_out" }
+  | { status: "corrupt"; path: string; reason: string };
+
 export type ReadResult =
   | { status: "signed_in"; token: string }
+  /** Signed in, but to `api`, not the server this run talks to. */
+  | { status: "signed_in_elsewhere"; api: string }
   | { status: "signed_out" }
   | { status: "corrupt"; path: string; reason: string };
 
@@ -42,7 +58,7 @@ export type ReadResult =
 const TOKEN_PATTERN = /^var_dt_[0-9A-Za-z]{40}$/;
 
 const HEADER = `# Written by varis login. This file signs in as you: keep it private.
-# One section per Varis API. Run varis logout to remove this machine's token.
+# Run varis logout to sign this machine out.
 `;
 
 export function credentialsPath(
@@ -64,11 +80,10 @@ export function credentialsPath(
   return path.join(configHome, "varis", "credentials.toml");
 }
 
-/** The token for `origin`, or why there isn't one. */
-export async function readToken(
-  origin: string,
+/** The whole file: the token and the server that issued it. */
+export async function readCredentials(
   location: CredentialsLocation = defaultLocation(),
-): Promise<ReadResult> {
+): Promise<CredentialsResult> {
   const file = credentialsPath(location);
 
   let text: string;
@@ -82,16 +97,28 @@ export async function readToken(
   if (location.platform !== "win32") await tightenIfExposed(file);
 
   const parsed = parseCredentials(text);
-  if (!parsed.ok) return { status: "corrupt", path: file, reason: parsed.reason };
+  return parsed.ok
+    ? { status: "signed_in", credentials: parsed.credentials }
+    : { status: "corrupt", path: file, reason: parsed.reason };
+}
 
-  const token = parsed.tokens.get(origin);
-  return token ? { status: "signed_in", token } : { status: "signed_out" };
+/** The token to send to `origin`, or why there isn't one. */
+export async function readToken(
+  origin: string,
+  location: CredentialsLocation = defaultLocation(),
+): Promise<ReadResult> {
+  const result = await readCredentials(location);
+  if (result.status !== "signed_in") return result;
+
+  const { token, api } = result.credentials;
+  return api === origin
+    ? { status: "signed_in", token }
+    : { status: "signed_in_elsewhere", api };
 }
 
 /**
- * Stores `token` for `origin`, keeping any other origin's token. A corrupt
- * file is replaced rather than merged: the new sign-in is what the developer
- * asked for, and the old contents can't be trusted.
+ * Stores `token`, issued by `origin`, replacing whatever the file held: an
+ * earlier token, one from another server, or corrupt contents.
  */
 export async function saveToken(
   origin: string,
@@ -101,43 +128,18 @@ export async function saveToken(
   if (!TOKEN_PATTERN.test(token)) {
     throw new Error("Refusing to save something that isn't a device token.");
   }
-
-  const tokens = await existingTokens(location);
-  tokens.set(origin, token);
-  await writeCredentials(tokens, location);
+  await writeCredentials({ token, api: origin }, location);
 }
 
-/**
- * Removes `origin`'s token. Deletes the file once no tokens are left.
- * Returns false when there was nothing to remove.
- */
+/** Deletes the file. Returns false when there was none. */
 export async function deleteToken(
-  origin: string,
   location: CredentialsLocation = defaultLocation(),
 ): Promise<boolean> {
-  const file = credentialsPath(location);
-  const tokens = await existingTokens(location);
-  const removed = tokens.delete(origin);
-
-  if (tokens.size === 0) {
-    await rm(file, { force: true });
-  } else if (removed) {
-    await writeCredentials(tokens, location);
-  }
-  return removed;
-}
-
-/** The file's tokens, or none when it is missing or corrupt. */
-async function existingTokens(
-  location: CredentialsLocation,
-): Promise<Map<string, string>> {
   try {
-    const parsed = parseCredentials(
-      await readFile(credentialsPath(location), "utf8"),
-    );
-    return parsed.ok ? parsed.tokens : new Map();
+    await rm(credentialsPath(location));
+    return true;
   } catch (error) {
-    if (isNotFound(error)) return new Map();
+    if (isNotFound(error)) return false;
     throw error;
   }
 }
@@ -148,7 +150,7 @@ async function existingTokens(
  * creation, so the token is never readable by others, even briefly.
  */
 async function writeCredentials(
-  tokens: Map<string, string>,
+  credentials: Credentials,
   location: CredentialsLocation,
 ): Promise<void> {
   const file = credentialsPath(location);
@@ -160,7 +162,7 @@ async function writeCredentials(
   if (posix) await chmod(folder, 0o700);
 
   const temporary = `${file}.${process.pid}.tmp`;
-  await writeFile(temporary, serialiseCredentials(tokens), { mode: 0o600 });
+  await writeFile(temporary, serialiseCredentials(credentials), { mode: 0o600 });
   if (posix) await chmod(temporary, 0o600);
   await rename(temporary, file);
 }
@@ -171,55 +173,45 @@ async function tightenIfExposed(file: string): Promise<void> {
 }
 
 type Parsed =
-  | { ok: true; tokens: Map<string, string> }
+  | { ok: true; credentials: Credentials }
   | { ok: false; reason: string };
 
 /**
- * The strict reader. Accepts comments, blank lines, `["origin"]` section
- * headers, and `token = "..."` lines inside a section. Nothing else.
+ * The strict reader. Accepts comments, blank lines, and exactly one
+ * `token = "..."` and one `api = "..."`, in either order. Nothing else.
  */
 export function parseCredentials(text: string): Parsed {
-  const tokens = new Map<string, string>();
-  let origin: string | null = null;
+  const values = new Map<string, string>();
   const lines = text.split(/\r?\n/);
 
   for (const [index, raw] of lines.entries()) {
     const line = raw.trim();
     if (line === "" || line.startsWith("#")) continue;
 
-    const header = /^\[\s*"([^"\\]+)"\s*\]$/.exec(line);
-    if (header) {
-      origin = header[1]!;
-      if (tokens.has(origin)) {
-        return { ok: false, reason: `"${origin}" appears twice.` };
-      }
-      continue;
+    const entry = /^(token|api)\s*=\s*"([^"\\]*)"$/.exec(line);
+    if (!entry) {
+      return { ok: false, reason: `line ${index + 1} isn't something varis wrote.` };
     }
-
-    const entry = /^token\s*=\s*"([^"\\]*)"$/.exec(line);
-    if (entry) {
-      if (origin === null) {
-        return { ok: false, reason: `line ${index + 1}: a token outside any section.` };
-      }
-      const token = entry[1]!;
-      if (!TOKEN_PATTERN.test(token)) {
-        return { ok: false, reason: `line ${index + 1}: not a device token.` };
-      }
-      tokens.set(origin, token);
-      continue;
+    const [, key, value] = entry as unknown as [string, string, string];
+    if (values.has(key)) {
+      return { ok: false, reason: `${key} appears twice.` };
     }
-
-    return { ok: false, reason: `line ${index + 1} isn't something varis wrote.` };
+    values.set(key, value);
   }
 
-  return { ok: true, tokens };
+  const token = values.get("token");
+  const api = values.get("api");
+  if (!token || !api) {
+    return { ok: false, reason: `${token ? "api" : "token"} is missing.` };
+  }
+  if (!TOKEN_PATTERN.test(token)) {
+    return { ok: false, reason: "token isn't a device token." };
+  }
+  return { ok: true, credentials: { token, api } };
 }
 
-export function serialiseCredentials(tokens: Map<string, string>): string {
-  const sections = [...tokens.entries()]
-    .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
-    .map(([origin, token]) => `["${origin}"]\ntoken = "${token}"\n`);
-  return `${HEADER}\n${sections.join("\n")}`;
+export function serialiseCredentials({ token, api }: Credentials): string {
+  return `${HEADER}\ntoken = "${token}"\napi = "${api}"\n`;
 }
 
 function isNotFound(error: unknown): boolean {

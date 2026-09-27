@@ -16,6 +16,7 @@ import {
   credentialsPath,
   deleteToken,
   parseCredentials,
+  readCredentials,
   readToken,
   saveToken,
   serialiseCredentials,
@@ -71,6 +72,7 @@ describe("credentialsPath", () => {
 describe("a missing file", () => {
   it("reads as signed out", async () => {
     expect(await readToken(PROD, location)).toEqual({ status: "signed_out" });
+    expect(await readCredentials(location)).toEqual({ status: "signed_out" });
   });
 
   it("is created, folder and all, on save", async () => {
@@ -82,43 +84,51 @@ describe("a missing file", () => {
   });
 });
 
-describe("tokens per API origin", () => {
-  it("keeps production and local tokens apart", async () => {
+describe("one token per machine", () => {
+  it("records which server issued the token", async () => {
     await saveToken(PROD, TOKEN_A, location);
-    await saveToken(LOCAL, TOKEN_B, location);
-
-    expect(await readToken(PROD, location)).toMatchObject({ token: TOKEN_A });
-    expect(await readToken(LOCAL, location)).toMatchObject({ token: TOKEN_B });
-    expect(await readToken("https://other.example", location)).toEqual({
-      status: "signed_out",
+    expect(await readCredentials(location)).toEqual({
+      status: "signed_in",
+      credentials: { token: TOKEN_A, api: PROD },
     });
   });
 
-  it("replaces an origin's token on a new sign-in", async () => {
+  it("replaces the token on a new sign-in", async () => {
     await saveToken(PROD, TOKEN_A, location);
     await saveToken(PROD, TOKEN_B, location);
-    expect(await readToken(PROD, location)).toMatchObject({ token: TOKEN_B });
+    expect(await readToken(PROD, location)).toEqual({
+      status: "signed_in",
+      token: TOKEN_B,
+    });
   });
 
-  it("removes one origin's token and keeps the other", async () => {
-    await saveToken(PROD, TOKEN_A, location);
-    await saveToken(LOCAL, TOKEN_B, location);
-
-    expect(await deleteToken(PROD, location)).toBe(true);
-    expect(await readToken(PROD, location)).toEqual({ status: "signed_out" });
-    expect(await readToken(LOCAL, location)).toMatchObject({ token: TOKEN_B });
+  it("replaces a token from another server on a new sign-in", async () => {
+    await saveToken(LOCAL, TOKEN_A, location);
+    await saveToken(PROD, TOKEN_B, location);
+    expect(await readCredentials(location)).toMatchObject({
+      credentials: { token: TOKEN_B, api: PROD },
+    });
   });
 
-  it("deletes the file once the last token is removed", async () => {
+  it("never offers a token to a server that didn't issue it", async () => {
+    await saveToken(LOCAL, TOKEN_A, location);
+    expect(await readToken(PROD, location)).toEqual({
+      status: "signed_in_elsewhere",
+      api: LOCAL,
+    });
+  });
+
+  it("deletes the file on sign-out", async () => {
     await saveToken(PROD, TOKEN_A, location);
-    expect(await deleteToken(PROD, location)).toBe(true);
+    expect(await deleteToken(location)).toBe(true);
     await expect(stat(credentialsPath(location))).rejects.toMatchObject({
       code: "ENOENT",
     });
+    expect(await readToken(PROD, location)).toEqual({ status: "signed_out" });
   });
 
-  it("reports nothing removed when signed out", async () => {
-    expect(await deleteToken(PROD, location)).toBe(false);
+  it("reports nothing removed when already signed out", async () => {
+    expect(await deleteToken(location)).toBe(false);
   });
 
   it("refuses to save something that isn't a device token", async () => {
@@ -144,18 +154,20 @@ describe("a corrupt file", () => {
   });
 
   it("rejects a token that isn't a device token", async () => {
-    await writeRaw(`["${PROD}"]\ntoken = "var_ak_${"a".repeat(40)}"\n`);
+    await writeRaw(`token = "var_ak_${"a".repeat(40)}"\napi = "${PROD}"\n`);
     expect(await readToken(PROD, location)).toMatchObject({ status: "corrupt" });
   });
 
-  it("rejects a token outside any section, and a duplicate section", () => {
+  it("rejects a missing field, a repeated field, and anything else", () => {
     expect(parseCredentials(`token = "${TOKEN_A}"`).ok).toBe(false);
+    expect(parseCredentials(`api = "${PROD}"`).ok).toBe(false);
     expect(
-      parseCredentials(`["${PROD}"]\ntoken = "${TOKEN_A}"\n["${PROD}"]\n`).ok,
+      parseCredentials(`token = "${TOKEN_A}"\ntoken = "${TOKEN_B}"\napi = "${PROD}"`).ok,
     ).toBe(false);
+    expect(parseCredentials(`["${PROD}"]\ntoken = "${TOKEN_A}"`).ok).toBe(false);
   });
 
-  it("is replaced, not merged, by a new sign-in", async () => {
+  it("is replaced by a new sign-in", async () => {
     await writeRaw("garbage");
     await saveToken(PROD, TOKEN_A, location);
     expect(await readToken(PROD, location)).toMatchObject({ token: TOKEN_A });
@@ -163,16 +175,18 @@ describe("a corrupt file", () => {
 });
 
 describe("the format", () => {
-  it("round-trips, sorted by origin, with comments ignored", () => {
-    const tokens = new Map([[PROD, TOKEN_A], [LOCAL, TOKEN_B]]);
-    const text = serialiseCredentials(tokens);
-    expect(text.indexOf(LOCAL)).toBeLessThan(text.indexOf(PROD));
-    const parsed = parseCredentials(text);
-    expect(parsed.ok && [...parsed.tokens]).toEqual([[LOCAL, TOKEN_B], [PROD, TOKEN_A]]);
+  it("round-trips, with comments ignored and fields in either order", () => {
+    const parsed = parseCredentials(
+      serialiseCredentials({ token: TOKEN_A, api: PROD }),
+    );
+    expect(parsed).toEqual({ ok: true, credentials: { token: TOKEN_A, api: PROD } });
+    expect(
+      parseCredentials(`# note\napi = "${PROD}"\n\ntoken = "${TOKEN_A}"\n`),
+    ).toEqual({ ok: true, credentials: { token: TOKEN_A, api: PROD } });
   });
 
   it("accepts Windows line endings", () => {
-    const parsed = parseCredentials(`["${PROD}"]\r\ntoken = "${TOKEN_A}"\r\n`);
+    const parsed = parseCredentials(`token = "${TOKEN_A}"\r\napi = "${PROD}"\r\n`);
     expect(parsed.ok).toBe(true);
   });
 });
@@ -196,7 +210,7 @@ describe.skipIf(process.platform === "win32")("file permissions", () => {
 
   it("keeps 0600 after rewriting", async () => {
     await saveToken(PROD, TOKEN_A, location);
-    await saveToken(LOCAL, TOKEN_B, location);
+    await saveToken(PROD, TOKEN_B, location);
     expect(await modeOf(credentialsPath(location))).toBe(0o600);
   });
 
