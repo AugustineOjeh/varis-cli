@@ -73,6 +73,11 @@ export type RequestOptions = {
   bearer?: string;
   /** Sent as X-Varis-Owner-Identifier, for commands that act for an owner. */
   owner?: string;
+  /**
+   * The Varis server to call, instead of the one this run talks to. Logout
+   * uses it to revoke a token at the server that issued it.
+   */
+  origin?: string;
   /** Injectable for tests. */
   fetch?: typeof fetch;
   env?: Env;
@@ -95,7 +100,7 @@ export async function apiRequest<T>(
   options: RequestOptions,
 ): Promise<ApiResult<T>> {
   const env = options.env ?? process.env;
-  const origin = apiOrigin(env);
+  const origin = options.origin ?? apiOrigin(env);
   const doFetch = options.fetch ?? fetch;
 
   const headers: Record<string, string> = {

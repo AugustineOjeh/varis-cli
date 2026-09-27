@@ -87,6 +87,21 @@ describe("a successful request", () => {
   });
 });
 
+describe("an explicit origin and token", () => {
+  it("calls the given server with the given token, ignoring the file", async () => {
+    const fetch = answer(200, { signed_out: true });
+    await apiRequest("POST", "/v1/cli/logout", options({
+      fetch,
+      auth: "none",
+      bearer: TOKEN,
+      origin: "http://localhost:3000/api",
+    }));
+    const [url, init] = fetch.mock.calls[0]!;
+    expect(url).toBe("http://localhost:3000/api/v1/cli/logout");
+    expect((init?.headers as Record<string, string>).Authorization).toBe(`Bearer ${TOKEN}`);
+  });
+});
+
 describe("before any request", () => {
   it("stops when signed out, without calling the server", async () => {
     const fetch = answer(200, {});
