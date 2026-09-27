@@ -35,6 +35,8 @@ varis-cli/
 ├── src/lib/query-string.ts  GET input as a query string, exactly as the gateway.
 ├── src/lib/schema.ts     JSON Schema validation, configured like the gateway.
 ├── src/lib/version.ts    The version.
+├── scripts/smoke-test.sh  Checks one compiled binary runs without Node.js.
+├── .github/workflows/build.yml  Tests, compiles all five binaries, smoke-tests each.
 └── test/                 Vitest suites.
 ```
 
@@ -44,7 +46,8 @@ varis-cli/
   `npm run varis -- --help`.
 - `npm test`: runs the Vitest suite.
 - `npm run typecheck`: type checks `src` and `test`.
-- `npm run build`: compiles a standalone binary with Bun into `dist/`.
+- `npm run build`: compiles a standalone binary with Bun into `dist/`. The
+  shipped binaries are built by `.github/workflows/build.yml`, not locally.
 
 To run against a local `varis` app on port 3000:
 `VARIS_API_URL=http://localhost:3000/api npm run varis -- login`.

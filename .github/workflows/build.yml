@@ -1,0 +1,148 @@
+# Checks, compiles, and smoke-tests the CLI on every platform it ships to.
+#
+# Runs on every push and pull request, and by hand from the Actions tab. The
+# release workflow (C2 in the CLI plan) will call it with `workflow_call` and
+# attach the binaries it produces to a GitHub release.
+#
+# Three jobs, in order:
+#   check    Type check and unit tests, on Node, from source.
+#   compile  Bun compiles all five binaries on one macOS runner. macOS,
+#            because Apple silicon refuses to run an unsigned binary, and
+#            only a Mac can sign one. Bun cross-compiles the Linux and
+#            Windows binaries from there.
+#   smoke    Each binary runs on its own platform, with no Node.js in reach:
+#            scripts/smoke-test.sh.
+#
+# Standard GitHub-hosted runners are free for public repositories.
+
+name: Build
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+  workflow_call:
+
+# Read-only: this workflow never writes to the repository.
+permissions:
+  contents: read
+
+# A newer push to the same branch cancels an older run still going.
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Pinned, so a Bun release can't change a binary without a commit here.
+  BUN_VERSION: "1.4.2"
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+
+  compile:
+    needs: check
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+      # Bun bundles the dependencies (Ajv) into each binary, so they must be
+      # installed first. npm, because package-lock.json is the lockfile;
+      # --omit=dev skips the test and type tools.
+      - run: npm ci --omit=dev
+
+      # One folder per target, each holding a binary named as developers run
+      # it: varis, or varis.exe on Windows. --minify shrinks the bundled
+      # JavaScript; --sourcemap keeps crash stack traces pointing at src/.
+      - name: Compile
+        run: |
+          for target in darwin-arm64 darwin-x64 linux-x64 linux-arm64 windows-x64; do
+            bun build src/cli.ts --compile --minify --sourcemap \
+              --target="bun-$target" --outfile "dist/varis-$target/varis"
+          done
+          ls -lR dist
+
+      # An ad-hoc signature: no Apple account, no certificate. Apple silicon
+      # won't run a binary without one; Intel Macs accept it too. Gatekeeper
+      # still warns on a browser download, which the install script and
+      # Homebrew avoid. See "C1: unsigned binaries" in the CLI plan.
+      - name: Sign the macOS binaries
+        run: |
+          for target in darwin-arm64 darwin-x64; do
+            codesign --force --sign - "dist/varis-$target/varis"
+            codesign --verify --verbose "dist/varis-$target/varis"
+          done
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: varis-darwin-arm64
+          path: dist/varis-darwin-arm64/varis
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v7
+        with:
+          name: varis-darwin-x64
+          path: dist/varis-darwin-x64/varis
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v7
+        with:
+          name: varis-linux-x64
+          path: dist/varis-linux-x64/varis
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v7
+        with:
+          name: varis-linux-arm64
+          path: dist/varis-linux-arm64/varis
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v7
+        with:
+          name: varis-windows-x64
+          path: dist/varis-windows-x64/varis.exe
+          if-no-files-found: error
+
+  smoke:
+    needs: compile
+    strategy:
+      # Run every platform even when one fails, to see them all at once.
+      fail-fast: false
+      matrix:
+        include:
+          - target: darwin-arm64
+            runner: macos-latest
+          - target: darwin-x64
+            runner: macos-15-intel
+          - target: linux-x64
+            runner: ubuntu-latest
+          - target: linux-arm64
+            runner: ubuntu-24.04-arm
+          - target: windows-x64
+            runner: windows-latest
+    runs-on: ${{ matrix.runner }}
+    # Git Bash on Windows, so one script tests every platform.
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
+        with:
+          name: varis-${{ matrix.target }}
+          path: bin
+      # Artifacts don't keep the executable bit. Windows doesn't need it.
+      - run: chmod +x bin/varis || true
+      - name: Smoke test
+        run: |
+          binary=bin/varis
+          [ -f bin/varis.exe ] && binary=bin/varis.exe
+          ls -l "$binary"
+          scripts/smoke-test.sh "$binary"
