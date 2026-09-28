@@ -5,7 +5,7 @@
 // everything the developer wrote around it survives. CLAUDE.md gets the
 // `@AGENTS.md` import that makes Claude Code read AGENTS.md.
 
-import { readFile, writeFile } from "node:fs/promises";
+import { readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 export const BLOCK_BEGIN = "<!-- BEGIN VARIS: managed by varis init; edits here are replaced -->";
@@ -76,6 +76,61 @@ export async function ensureClaudeImport(projectDir: string): Promise<FileChange
   const separator = existing === "" || existing.endsWith("\n") ? "" : "\n";
   await writeFile(file, `${existing}${separator}@AGENTS.md\n`);
   return "updated";
+}
+
+/** The header upsertAgentsBlock writes when it creates AGENTS.md. */
+const CREATED_HEADER = "# Instructions for coding agents";
+
+export type Removal = "removed" | "deleted" | "absent";
+
+/**
+ * Undoes upsertAgentsBlock, for varis dracarys: removes the Varis block and
+ * the blank line before it. Deletes AGENTS.md when nothing is left but the
+ * header varis init wrote, so a file init created leaves with it, and a
+ * file the developer wrote keeps everything else.
+ */
+export async function removeAgentsBlock(projectDir: string): Promise<Removal> {
+  const file = path.join(projectDir, "AGENTS.md");
+  const existing = await readIfExists(file);
+  if (existing === null) return "absent";
+
+  const begin = existing.indexOf(BLOCK_BEGIN);
+  const end = existing.indexOf(BLOCK_END, begin);
+  if (begin === -1 || end === -1) return "absent";
+
+  const before = existing.slice(0, begin).replace(/\n+$/, "");
+  const after = existing.slice(end + BLOCK_END.length).replace(/^\n+/, "");
+  const rest = [before, after].filter((part) => part.trim() !== "").join("\n\n");
+
+  if (rest.trim() === "" || rest.trim() === CREATED_HEADER) {
+    await rm(file);
+    return "deleted";
+  }
+  await writeFile(file, `${rest.replace(/\n+$/, "")}\n`);
+  return "removed";
+}
+
+/**
+ * Undoes ensureClaudeImport, for varis dracarys, once AGENTS.md is gone:
+ * removes the `@AGENTS.md` line, which would point at nothing, and deletes
+ * CLAUDE.md when that line was all it held.
+ */
+export async function removeClaudeImport(projectDir: string): Promise<Removal> {
+  const file = path.join(projectDir, "CLAUDE.md");
+  const existing = await readIfExists(file);
+  if (existing === null) return "absent";
+
+  const lines = existing.split(/\r?\n/);
+  const kept = lines.filter((line) => line.trim() !== "@AGENTS.md");
+  if (kept.length === lines.length) return "absent";
+
+  const rest = kept.join("\n").trim();
+  if (rest === "") {
+    await rm(file);
+    return "deleted";
+  }
+  await writeFile(file, `${rest}\n`);
+  return "removed";
 }
 
 async function readIfExists(file: string): Promise<string | null> {

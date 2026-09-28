@@ -65,12 +65,6 @@ describe("varis", () => {
     expect(out).toEqual([]);
     expect(err.join("\n")).toContain("Unknown command: invoke");
   });
-
-  it("reports a command that isn't built yet, exiting 1", async () => {
-    const { output, err } = capture();
-    expect(await runCli(["dracarys"], output)).toBe(1);
-    expect(err.join("\n")).toContain("isn't built yet");
-  });
 });
 
 describe("a command that crashes", () => {

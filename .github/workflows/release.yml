@@ -2,7 +2,7 @@
 #
 #   git tag v0.2.0 && git push origin v0.2.0
 #
-# Six jobs, in order:
+# Seven jobs, in order:
 #   validate  The tag must look like v1.2.3 (or v1.2.3-rc.1) and point at a
 #             commit already on main, so nothing unreviewed ships.
 #   build     build.yml, with the version stamped in from the tag: tests,
@@ -16,6 +16,10 @@
 #             reports the tag's version. It runs after publishing because
 #             the installers download from the release itself; if it fails,
 #             mark the release as a pre-release and fix forward.
+#   dracarys  Installs this release with the install script, runs
+#             `varis dracarys --goddamnit` in a project varis init set up,
+#             and checks nothing is left: binary, PATH line, config folder,
+#             varis.json, or AGENTS.md. On macOS, Linux, and Windows.
 #   packages  packages.yml: updates the Homebrew tap and the Scoop bucket
 #             to this release, and installs from each. Full releases only:
 #             a package manager must never get a pre-release.
@@ -273,3 +277,64 @@ jobs:
           Write-Output "now $installed"
           if ($installed -ne $env:VERSION) { exit 1 }
           if (Test-Path "$varis.old") { Write-Error "The parked varis.exe.old wasn't removed."; exit 1 }
+
+  dracarys:
+    needs: [validate, publish]
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [macos-latest, ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.runner }}
+    env:
+      VARIS_VERSION: ${{ needs.validate.outputs.version }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install, set up a project, and burn it all (macOS, Linux)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          sh install.sh
+          varis="$HOME/.varis/bin/varis"
+          grep -q "Added by the Varis installer" ~/.bashrc ~/.bash_profile ~/.zshrc ~/.profile 2>/dev/null
+
+          # A project as varis init leaves it, without signing in.
+          project="$(mktemp -d)"
+          cd "$project"
+          echo '{}' >varis.json
+          printf '# Instructions for coding agents\n\n<!-- BEGIN VARIS: managed by varis init; edits here are replaced -->\n## Varis\n<!-- END VARIS -->\n' >AGENTS.md
+          echo '@AGENTS.md' >CLAUDE.md
+          mkdir -p ~/.config/varis
+
+          "$varis" dracarys --goddamnit
+
+          for gone in "$HOME/.varis" ~/.config/varis varis.json AGENTS.md CLAUDE.md; do
+            if [ -e "$gone" ]; then echo "::error::$gone is still there"; exit 1; fi
+          done
+          if grep -q "Added by the Varis installer" ~/.bashrc ~/.bash_profile ~/.zshrc ~/.profile 2>/dev/null; then
+            echo "::error::The PATH line is still in a startup file"; exit 1
+          fi
+
+      - name: Install, set up a project, and burn it all (Windows)
+        if: runner.os == 'Windows'
+        shell: powershell
+        run: |
+          .\install.ps1
+          $varis = "$HOME\.varis\bin\varis.exe"
+          $project = Join-Path ([IO.Path]::GetTempPath()) ([Guid]::NewGuid())
+          New-Item -ItemType Directory $project | Out-Null
+          Set-Location $project
+          Set-Content varis.json '{}'
+          New-Item -ItemType Directory -Force "$env:APPDATA\varis" | Out-Null
+
+          & $varis dracarys --goddamnit
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+
+          # The install folder and PATH entry go once varis has exited, from
+          # a script that waits for it. Give it up to 60 seconds.
+          for ($i = 0; $i -lt 60 -and (Test-Path "$HOME\.varis"); $i++) { Start-Sleep 1 }
+          foreach ($gone in @("$HOME\.varis", "$env:APPDATA\varis", "varis.json")) {
+            if (Test-Path $gone) { Write-Error "$gone is still there"; exit 1 }
+          }
+          $userPath = [Environment]::GetEnvironmentVariable("Path", "User")
+          if ($userPath -like "*\.varis\bin*") { Write-Error "The PATH entry is still there"; exit 1 }

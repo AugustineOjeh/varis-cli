@@ -36,6 +36,7 @@ varis-cli/
 ├── src/lib/schema.ts     JSON Schema validation, configured like the gateway.
 ├── src/lib/install-channel.ts  How this copy was installed: Homebrew, Scoop, script.
 ├── src/lib/release.ts    Finds, downloads, and checks a release, for varis upgrade.
+├── src/lib/uninstall.ts  Undoes an install, for varis dracarys.
 ├── src/lib/version.ts    The version.
 ├── install.sh            Installer for macOS and Linux (POSIX sh, not bash).
 ├── install.ps1           Installer for Windows (Windows PowerShell 5.1).

@@ -155,3 +155,23 @@ function parseProblems(stderr: string): Problem[] {
   }
   return problems;
 }
+
+/**
+ * Runs `command` with its output shown as it goes, for a package manager
+ * whose progress the developer should see. Resolves to its exit code, or
+ * "missing" when the program isn't installed.
+ */
+export const runCommandShown = (command: string[]): Promise<number | "missing"> =>
+  new Promise((resolve) => {
+    const [program, ...args] = command as [string, ...string[]];
+    // scoop and npx are .cmd shims on Windows, which only run through a
+    // shell.
+    const child = spawn(program, args, {
+      shell: process.platform === "win32",
+      stdio: "inherit",
+    });
+    child.on("error", (error: Error & { code?: string }) =>
+      resolve(error.code === "ENOENT" ? "missing" : 1)
+    );
+    child.on("close", (code) => resolve(code ?? 1));
+  });
