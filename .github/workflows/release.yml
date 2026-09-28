@@ -234,7 +234,10 @@ jobs:
             exit 0
           fi
           git commit -m "varis $VERSION"
-          git push
+          git push || {
+            echo "::error::Couldn't push to homebrew-tap. Check that its deploy key has write access (homebrew-tap, Settings, Deploy keys: it should say Read/write) and that HOMEBREW_TAP_DEPLOY_KEY holds the matching private key."
+            exit 1
+          }
 
   homebrew-install:
     needs: [validate, homebrew]
