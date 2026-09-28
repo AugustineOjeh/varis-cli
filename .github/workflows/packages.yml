@@ -1,0 +1,142 @@
+# Points the package managers at a release, then installs from each to
+# prove it works.
+#
+# Called by release.yml for every full release. Also runs by hand, from the
+# Actions tab, for a version already released: to retry after fixing a
+# deploy key, or to set up a new package manager without a new release.
+#
+# Four jobs:
+#   homebrew          Writes Formula/varis.rb into AugustineOjeh/homebrew-tap.
+#   homebrew-install  `brew install` on both kinds of Mac, and `brew test`.
+#   scoop             Writes bucket/varis.json into AugustineOjeh/scoop-bucket.
+#   scoop-install     `scoop install` on Windows.
+#
+# Each repository is written through its own deploy key: an SSH key that
+# can write to that one repository and nothing else, and doesn't expire.
+# Stored here as the HOMEBREW_TAP_DEPLOY_KEY and SCOOP_BUCKET_DEPLOY_KEY
+# repository secrets.
+
+name: Packages
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        type: string
+        required: true
+  workflow_dispatch:
+    inputs:
+      version:
+        description: A full release already published, such as 0.2.1
+        type: string
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  # A typed-in version reaches URLs and commit messages, and a pre-release
+  # must never reach a package manager, so it must be exactly x.y.z.
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check the version
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::$VERSION isn't a full release version. Use x.y.z, without a v or a pre-release suffix."
+            exit 1
+          fi
+
+  homebrew:
+    needs: check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          path: cli
+      - uses: actions/checkout@v7
+        with:
+          repository: AugustineOjeh/homebrew-tap
+          ssh-key: ${{ secrets.HOMEBREW_TAP_DEPLOY_KEY }}
+          path: tap
+      - name: Update the formula
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          curl -fsSL -o SHA256SUMS "https://github.com/$GITHUB_REPOSITORY/releases/download/v$VERSION/SHA256SUMS"
+          mkdir -p tap/Formula
+          cli/scripts/homebrew-formula.sh "$VERSION" SHA256SUMS >tap/Formula/varis.rb
+          cat tap/Formula/varis.rb
+          cli/scripts/commit-package.sh tap Formula/varis.rb "varis $VERSION" homebrew-tap HOMEBREW_TAP_DEPLOY_KEY
+
+  homebrew-install:
+    needs: homebrew
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [macos-latest, macos-15-intel]
+    runs-on: ${{ matrix.runner }}
+    env:
+      VERSION: ${{ inputs.version }}
+      # Only the tap matters here; skip refreshing all of Homebrew.
+      HOMEBREW_NO_AUTO_UPDATE: "1"
+    steps:
+      # The runner's image comes with other taps, some broken. Their errors
+      # show up in this log but don't affect varis.
+      - name: Install from the tap
+        run: |
+          brew install augustineojeh/tap/varis
+          installed="$(varis --version)"
+          echo "installed $installed"
+          [ "$installed" = "$VERSION" ]
+          brew test augustineojeh/tap/varis
+
+  scoop:
+    needs: check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          path: cli
+      - uses: actions/checkout@v7
+        with:
+          repository: AugustineOjeh/scoop-bucket
+          ssh-key: ${{ secrets.SCOOP_BUCKET_DEPLOY_KEY }}
+          path: bucket
+      - name: Update the manifest
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          curl -fsSL -o SHA256SUMS "https://github.com/$GITHUB_REPOSITORY/releases/download/v$VERSION/SHA256SUMS"
+          mkdir -p bucket/bucket
+          cli/scripts/scoop-manifest.sh "$VERSION" SHA256SUMS >bucket/bucket/varis.json
+          cat bucket/bucket/varis.json
+          cli/scripts/commit-package.sh bucket bucket/varis.json "varis $VERSION" scoop-bucket SCOOP_BUCKET_DEPLOY_KEY
+
+  scoop-install:
+    needs: scoop
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: pwsh
+    env:
+      VERSION: ${{ inputs.version }}
+    steps:
+      # The runner has no Scoop, and runs as administrator, which Scoop's
+      # installer refuses without -RunAsAdmin. Developers install it
+      # themselves, without that flag.
+      - name: Install Scoop
+        run: |
+          iex "& {$(irm get.scoop.sh)} -RunAsAdmin"
+          # Scoop's docs don't promise the installer updates this session's
+          # PATH, so later steps get its shims folder added explicitly.
+          "$HOME\scoop\shims" | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
+      - name: Install from the bucket
+        run: |
+          scoop bucket add varis https://github.com/AugustineOjeh/scoop-bucket
+          scoop install varis/varis
+          $installed = varis --version
+          Write-Output "installed $installed"
+          if ($installed -ne $env:VERSION) { exit 1 }

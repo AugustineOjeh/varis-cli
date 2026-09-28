@@ -39,9 +39,12 @@ varis-cli/
 ├── install.ps1           Installer for Windows (Windows PowerShell 5.1).
 ├── scripts/smoke-test.sh  Checks one compiled binary runs without Node.js.
 ├── scripts/homebrew-formula.sh  Writes the Homebrew formula for a release.
+├── scripts/scoop-manifest.sh    Writes the Scoop manifest for a release.
+├── scripts/commit-package.sh   Commits a formula or manifest to its repository.
 ├── .github/workflows/check.yml  Type check and tests, on every pull request to main.
 ├── .github/workflows/build.yml  Compiles all five binaries and smoke-tests each.
 ├── .github/workflows/release.yml  On a version tag: builds, checksums, and releases.
+├── .github/workflows/packages.yml  Updates Homebrew and Scoop to a release.
 └── test/                 Vitest suites.
 ```
 

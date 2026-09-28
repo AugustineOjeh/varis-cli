@@ -26,7 +26,7 @@ Run `varis <command> --help` for details.
 
 ## Install
 
-The CLI is a single binary and doesn't need Node.js. Scoop is coming soon.
+The CLI is a single binary and doesn't need Node.js.
 
 With Homebrew, on macOS or Linux:
 
@@ -40,7 +40,14 @@ Or with the install script, on macOS or Linux:
 curl -fsSL https://raw.githubusercontent.com/AugustineOjeh/varis-cli/main/install.sh | sh
 ```
 
-On Windows, in PowerShell:
+With Scoop, on Windows:
+
+```powershell
+scoop bucket add varis https://github.com/AugustineOjeh/scoop-bucket
+scoop install varis/varis
+```
+
+Or with the install script, on Windows, in PowerShell:
 
 ```powershell
 irm https://raw.githubusercontent.com/AugustineOjeh/varis-cli/main/install.ps1 | iex

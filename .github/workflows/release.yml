@@ -2,7 +2,7 @@
 #
 #   git tag v0.2.0 && git push origin v0.2.0
 #
-# Six jobs, in order:
+# Five jobs, in order:
 #   validate  The tag must look like v1.2.3 (or v1.2.3-rc.1) and point at a
 #             commit already on main, so nothing unreviewed ships.
 #   build     build.yml, with the version stamped in from the tag: tests,
@@ -16,13 +16,9 @@
 #             reports the tag's version. It runs after publishing because
 #             the installers download from the release itself; if it fails,
 #             mark the release as a pre-release and fix forward.
-#   homebrew  Writes Formula/varis.rb for this release into the
-#             AugustineOjeh/homebrew-tap repository, through a deploy key
-#             that can write to that repository and nothing else. Full
-#             releases only: `brew install` must never get a pre-release.
-#   homebrew-install
-#             Installs from the tap on both kinds of Mac, as a developer
-#             would, and runs the formula's own test.
+#   packages  packages.yml: updates the Homebrew tap and the Scoop bucket
+#             to this release, and installs from each. Full releases only:
+#             a package manager must never get a pre-release.
 #
 # A tag with a suffix, such as v0.2.0-rc.1, makes a pre-release. GitHub never
 # marks a pre-release as latest, so the install script, `varis upgrade`, and
@@ -199,62 +195,11 @@ jobs:
           $userPath = [Environment]::GetEnvironmentVariable("Path", "User")
           if ($userPath -notlike "*\.varis\bin*") { exit 1 }
 
-  homebrew:
+  packages:
     needs: [validate, install]
     if: ${{ !contains(needs.validate.outputs.version, '-') }}
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          path: cli
-      # The deploy key is an SSH key registered on homebrew-tap with write
-      # access, and stored here as the HOMEBREW_TAP_DEPLOY_KEY secret. It
-      # works for that one repository only and doesn't expire.
-      - uses: actions/checkout@v7
-        with:
-          repository: AugustineOjeh/homebrew-tap
-          ssh-key: ${{ secrets.HOMEBREW_TAP_DEPLOY_KEY }}
-          path: tap
-      - name: Update the formula
-        env:
-          VERSION: ${{ needs.validate.outputs.version }}
-        run: |
-          curl -fsSL -o SHA256SUMS "https://github.com/$GITHUB_REPOSITORY/releases/download/v$VERSION/SHA256SUMS"
-          mkdir -p tap/Formula
-          cli/scripts/homebrew-formula.sh "$VERSION" SHA256SUMS >tap/Formula/varis.rb
-          cat tap/Formula/varis.rb
-
-          cd tap
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add Formula/varis.rb
-          # A rerun of the same release has nothing new to commit.
-          if git diff --cached --quiet; then
-            echo "The formula is already up to date."
-            exit 0
-          fi
-          git commit -m "varis $VERSION"
-          git push || {
-            echo "::error::Couldn't push to homebrew-tap. Check that its deploy key has write access (homebrew-tap, Settings, Deploy keys: it should say Read/write) and that HOMEBREW_TAP_DEPLOY_KEY holds the matching private key."
-            exit 1
-          }
-
-  homebrew-install:
-    needs: [validate, homebrew]
-    strategy:
-      fail-fast: false
-      matrix:
-        runner: [macos-latest, macos-15-intel]
-    runs-on: ${{ matrix.runner }}
-    env:
-      VERSION: ${{ needs.validate.outputs.version }}
-      # Only the tap matters here; skip refreshing all of Homebrew.
-      HOMEBREW_NO_AUTO_UPDATE: "1"
-    steps:
-      - name: Install from the tap
-        run: |
-          brew install augustineojeh/tap/varis
-          installed="$(varis --version)"
-          echo "installed $installed"
-          [ "$installed" = "$VERSION" ]
-          brew test augustineojeh/tap/varis
+    uses: ./.github/workflows/packages.yml
+    with:
+      version: ${{ needs.validate.outputs.version }}
+    # The deploy keys for the tap and the bucket.
+    secrets: inherit
