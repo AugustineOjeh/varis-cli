@@ -17,7 +17,13 @@ import { VARIS_API_ORIGIN } from "../src/lib/constants.ts";
 import { type CredentialsLocation, credentialsPath, saveToken } from "../src/lib/credentials.ts";
 import type { Output } from "../src/lib/output.ts";
 import type { Prompter } from "../src/lib/prompt.ts";
-import { encodePowerShell, PATH_MARKER, removePathLines, windowsCleanupScript } from "../src/lib/uninstall.ts";
+import {
+  encodePowerShell,
+  PATH_MARKER,
+  removePathLines,
+  windowsCleanupScript,
+  windowsLauncher,
+} from "../src/lib/uninstall.ts";
 
 const TOKEN = `var_dt_${"a".repeat(40)}`;
 
@@ -244,6 +250,20 @@ describe("encodePowerShell", () => {
 
     expect(encoded).toMatch(/^[A-Za-z0-9+/=]+$/);
     expect(Buffer.from(encoded, "base64").toString("utf16le")).toBe(script);
+  });
+});
+
+describe("windowsLauncher", () => {
+  it("has Windows start the script hidden, through WMI, and reports whether it did", () => {
+    const script = windowsCleanupScript(7, { kind: "scoop" });
+    const launcher = windowsLauncher(script);
+
+    expect(launcher).toContain("Invoke-CimMethod -ClassName Win32_Process -MethodName Create");
+    expect(launcher).toContain(`-WindowStyle Hidden -EncodedCommand ${encodePowerShell(script)}'`);
+    expect(launcher).toContain("exit $started.ReturnValue");
+    // The command line sits in single quotes, so it must not contain one.
+    const commandLine = launcher.slice(launcher.indexOf("'") + 1, launcher.lastIndexOf("'"));
+    expect(commandLine).not.toContain("'");
   });
 });
 

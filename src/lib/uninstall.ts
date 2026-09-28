@@ -11,8 +11,16 @@
 // varis to exit, then uninstalls through Scoop or deletes the install
 // folder and its PATH entry. By the time the developer reads the final
 // message, it's already waiting.
+//
+// That script must outlive varis, and a child process can't be trusted to:
+// on Windows, children can sit in a job object that kills them when the
+// parent exits, and a compiled Bun binary's detached spawn doesn't escape
+// it (0.3.2 and 0.3.3 lost the script this way, before it logged a line).
+// So varis doesn't start the script itself. It asks Windows to, through
+// WMI's Win32_Process.Create: the new process belongs to the WMI service,
+// not to varis, so nothing ties its life to ours.
 
-import { spawn } from "node:child_process";
+import { spawnSync } from "node:child_process";
 import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type { Env } from "./constants.ts";
@@ -124,15 +132,38 @@ export function encodePowerShell(script: string): string {
   return Buffer.from(script, "utf16le").toString("base64");
 }
 
+/** The PowerShell command line that runs `script`, hidden. */
+function hiddenPowerShell(script: string): string {
+  return `powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -WindowStyle Hidden -EncodedCommand ${encodePowerShell(script)}`;
+}
+
 /**
- * Starts `script` in a hidden PowerShell that outlives this process. Never
- * waits for it: it's waiting for us.
+ * The short PowerShell command varis runs, and waits for, to have Windows
+ * start `script` independently of varis. Win32_Process.Create answers with
+ * 0 once the process is running; any other value is a failure code. The
+ * command line is base64 and fixed flags, with no quote in it, so it's safe
+ * inside the single quotes.
+ */
+export function windowsLauncher(script: string): string {
+  return [
+    `$started = Invoke-CimMethod -ClassName Win32_Process -MethodName Create -Arguments @{ CommandLine = '${hiddenPowerShell(script)}' }`,
+    `exit $started.ReturnValue`,
+  ].join("\n");
+}
+
+/**
+ * Starts `script` in a hidden PowerShell that outlives this process, and
+ * throws if Windows didn't start it. Returns as soon as it's running: the
+ * script itself is waiting for varis to exit.
  */
 export function startDetachedPowerShell(script: string): void {
-  const child = spawn(
+  const launched = spawnSync(
     "powershell",
-    ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-EncodedCommand", encodePowerShell(script)],
-    { detached: true, stdio: "ignore", windowsHide: true },
+    ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-EncodedCommand", encodePowerShell(windowsLauncher(script))],
+    { stdio: "ignore", windowsHide: true, timeout: 60_000 },
   );
-  child.unref();
+  if (launched.error) throw launched.error;
+  if (launched.status !== 0) {
+    throw new Error(`Windows didn't start the uninstall script (Win32_Process.Create returned ${launched.status}).`);
+  }
 }

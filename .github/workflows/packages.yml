@@ -93,11 +93,11 @@ jobs:
           [ "$installed" = "$VERSION" ]
           brew test usevaris/tap/varis
 
-      # varis dracarys arrived in 0.3.2, and works on Windows from 0.3.3. From then on, check it uninstalls a
+      # varis dracarys arrived in 0.3.2, and works on Windows from 0.3.4. From then on, check it uninstalls a
       # Homebrew copy and removes the tap.
       - name: Burn it with varis dracarys
         run: |
-          if [ "$(printf '%s\n0.3.3\n' "$VERSION" | sort -V | head -1)" != "0.3.3" ]; then
+          if [ "$(printf '%s\n0.3.4\n' "$VERSION" | sort -V | head -1)" != "0.3.4" ]; then
             echo "::notice::Skipping: $VERSION predates varis dracarys."
             exit 0
           fi
@@ -153,11 +153,11 @@ jobs:
           Write-Output "installed $installed"
           if ($installed -ne $env:VERSION) { exit 1 }
 
-      # varis dracarys arrived in 0.3.2, and works on Windows from 0.3.3. From then on, check it uninstalls a
+      # varis dracarys arrived in 0.3.2, and works on Windows from 0.3.4. From then on, check it uninstalls a
       # Scoop copy and removes the bucket, which happens once varis exits.
       - name: Burn it with varis dracarys
         run: |
-          if ([version]$env:VERSION -lt [version]"0.3.3") {
+          if ([version]$env:VERSION -lt [version]"0.3.4") {
             Write-Output "::notice::Skipping: $env:VERSION predates varis dracarys."
             exit 0
           }
