@@ -23,13 +23,12 @@
 // moved into its place, and the old file deleted by the next run of varis
 // (see removeLeftoverUpgrade, called from src/cli.ts).
 
-import { spawn } from "node:child_process";
 import { realpathSync } from "node:fs";
 import { chmod, mkdtemp, rename, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import type { Command } from "../lib/command.ts";
-import { runCommand, type Runner } from "../lib/generator.ts";
+import { runCommand, runCommandShown, type Runner } from "../lib/generator.ts";
 import { type Channel, detectChannel } from "../lib/install-channel.ts";
 import { reportLines } from "../lib/issues.ts";
 import type { Output } from "../lib/output.ts";
@@ -67,10 +66,11 @@ const defaultDeps = (): UpgradeDeps => ({
   version: VERSION,
   fetch,
   run: runCommand,
-  runShown: runShownCommand,
+  runShown: runCommandShown,
 });
 
-function resolvedExecPath(): string {
+/** The running binary with symlinks resolved, falling back to the path as run. */
+export function resolvedExecPath(): string {
   try {
     return realpathSync(process.execPath);
   } catch {
@@ -225,21 +225,6 @@ export async function removeLeftoverUpgrade(binary = resolvedExecPath()): Promis
   if (process.platform !== "win32") return;
   await rm(`${binary}${LEFTOVER_SUFFIX}`, { force: true }).catch(() => {});
 }
-
-const runShownCommand = (command: string[]): Promise<number | "missing"> =>
-  new Promise((resolve) => {
-    const [program, ...args] = command as [string, ...string[]];
-    // scoop is a PowerShell script behind a .cmd shim on Windows, which only
-    // runs through a shell.
-    const child = spawn(program, args, {
-      shell: process.platform === "win32",
-      stdio: "inherit",
-    });
-    child.on("error", (error: Error & { code?: string }) =>
-      resolve(error.code === "ENOENT" ? "missing" : 1)
-    );
-    child.on("close", (code) => resolve(code ?? 1));
-  });
 
 export const upgrade: Command = {
   name: "upgrade",

@@ -16,14 +16,3 @@ export type Command = {
   usage: string;
   run: (args: string[], output: Output) => Promise<number>;
 };
-
-/**
- * A command that exists in the help but isn't built yet. Replaced step by
- * step through Phase B of the CLI plan.
- */
-export function notBuiltYet(name: string, step: string): Command["run"] {
-  return async (_args, output) => {
-    output.err(`varis ${name} isn't built yet (CLI plan ${step}).`);
-    return 1;
-  };
-}

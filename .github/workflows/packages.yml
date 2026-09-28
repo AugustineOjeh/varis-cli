@@ -93,6 +93,18 @@ jobs:
           [ "$installed" = "$VERSION" ]
           brew test usevaris/tap/varis
 
+      # varis dracarys arrived in 0.3.0. From then on, check it uninstalls a
+      # Homebrew copy and removes the tap.
+      - name: Burn it with varis dracarys
+        run: |
+          if [ "$(printf '%s\n0.3.0\n' "$VERSION" | sort -V | head -1)" != "0.3.0" ]; then
+            echo "::notice::Skipping: $VERSION predates varis dracarys."
+            exit 0
+          fi
+          varis dracarys --goddamnit
+          if brew list --formula | grep -qx varis; then echo "::error::varis is still installed"; exit 1; fi
+          if brew tap | grep -qx usevaris/tap; then echo "::error::The tap is still there"; exit 1; fi
+
   scoop:
     needs: check
     runs-on: ubuntu-latest
@@ -140,3 +152,16 @@ jobs:
           $installed = varis --version
           Write-Output "installed $installed"
           if ($installed -ne $env:VERSION) { exit 1 }
+
+      # varis dracarys arrived in 0.3.0. From then on, check it uninstalls a
+      # Scoop copy and removes the bucket, which happens once varis exits.
+      - name: Burn it with varis dracarys
+        run: |
+          if ([version]$env:VERSION -lt [version]"0.3.0") {
+            Write-Output "::notice::Skipping: $env:VERSION predates varis dracarys."
+            exit 0
+          }
+          varis dracarys --goddamnit
+          for ($i = 0; $i -lt 60 -and (Test-Path "$HOME\scoop\apps\varis"); $i++) { Start-Sleep 1 }
+          if (Test-Path "$HOME\scoop\apps\varis") { Write-Error "varis is still installed"; exit 1 }
+          if (scoop bucket list | Select-String -SimpleMatch "varis") { Write-Error "The bucket is still there"; exit 1 }
