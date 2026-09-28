@@ -1,7 +1,7 @@
 #!/bin/sh
 # Installs the Varis CLI on macOS or Linux.
 #
-#   curl -fsSL https://raw.githubusercontent.com/AugustineOjeh/varis-cli/main/install.sh | sh
+#   curl -fsSL https://raw.githubusercontent.com/usevaris/varis-cli/main/install.sh | sh
 #
 # What it does, in order:
 #   1. Works out this machine's platform: macOS or Linux, on Apple silicon,
@@ -27,7 +27,7 @@
 
 set -eu
 
-REPOSITORY="AugustineOjeh/varis-cli"
+REPOSITORY="usevaris/varis-cli"
 
 # Everything runs inside main, called on the last line. If the download of
 # this script stops halfway, sh never reaches that line, so a partial script

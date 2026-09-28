@@ -101,7 +101,7 @@ describe("varis build", () => {
     const printed = t.err.join("\n");
     expect(printed).toContain("The Varis generator crashed. This is a bug in Varis, not your code.");
     expect(printed).toContain("TypeError: boom");
-    expect(printed).toContain("github.com/AugustineOjeh/varis-ts/issues/new");
+    expect(printed).toContain("github.com/usevaris/varis-ts/issues/new");
   });
 
   it("an unrecognised project: names the markers it looks for, running nothing", async () => {

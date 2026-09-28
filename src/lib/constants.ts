@@ -28,7 +28,7 @@ export function apiOrigin(env: Env = process.env): string {
  * Where bugs are reported: the public varis-cli repository. Only here, so a
  * move to a Varis organisation on GitHub is a one-line change.
  */
-export const REPOSITORY_URL = "https://github.com/AugustineOjeh/varis-cli";
+export const REPOSITORY_URL = "https://github.com/usevaris/varis-cli";
 
 export const ISSUES_URL = `${REPOSITORY_URL}/issues`;
 
@@ -40,7 +40,7 @@ export const REPORTING_GUIDE_URL =
  * Where the SDKs and their generators live. A generator crash in varis build
  * is reported there, not here.
  */
-export const SDK_REPOSITORY_URL = "https://github.com/AugustineOjeh/varis-ts";
+export const SDK_REPOSITORY_URL = "https://github.com/usevaris/varis-ts";
 
 export const SDK_ISSUES_URL = `${SDK_REPOSITORY_URL}/issues`;
 

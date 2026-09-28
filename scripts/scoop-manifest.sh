@@ -3,10 +3,10 @@
 #
 #   scripts/scoop-manifest.sh 0.2.1 path/to/SHA256SUMS >bucket/varis.json
 #
-# Run by .github/workflows/release.yml, which commits the result to the
-# AugustineOjeh/scoop-bucket repository, so developers on Windows can run:
+# Run by .github/workflows/packages.yml, which commits the result to the
+# usevaris/scoop-bucket repository, so developers on Windows can run:
 #
-#   scoop bucket add varis https://github.com/AugustineOjeh/scoop-bucket
+#   scoop bucket add varis https://github.com/usevaris/scoop-bucket
 #   scoop install varis/varis
 #
 # The manifest points at the Windows archive, pinned by its SHA-256 from the
@@ -29,7 +29,7 @@ fi
 
 version="$1"
 sums="$2"
-url="https://github.com/AugustineOjeh/varis-cli/releases/download/v$version/varis-windows-x64.zip"
+url="https://github.com/usevaris/varis-cli/releases/download/v$version/varis-windows-x64.zip"
 
 # Read before writing anything. A failure inside the heredoc below would only
 # end a subshell, and cat would still succeed, writing a manifest without a
@@ -44,7 +44,7 @@ cat <<EOF
 {
   "version": "$version",
   "description": "Publish services that AI agents discover and pay to call.",
-  "homepage": "https://github.com/AugustineOjeh/varis-cli",
+  "homepage": "https://github.com/usevaris/varis-cli",
   "license": "MIT",
   "architecture": {
     "64bit": {

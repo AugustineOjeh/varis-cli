@@ -6,9 +6,9 @@
 # deploy key, or to set up a new package manager without a new release.
 #
 # Four jobs:
-#   homebrew          Writes Formula/varis.rb into AugustineOjeh/homebrew-tap.
+#   homebrew          Writes Formula/varis.rb into usevaris/homebrew-tap.
 #   homebrew-install  `brew install` on both kinds of Mac, and `brew test`.
-#   scoop             Writes bucket/varis.json into AugustineOjeh/scoop-bucket.
+#   scoop             Writes bucket/varis.json into usevaris/scoop-bucket.
 #   scoop-install     `scoop install` on Windows.
 #
 # Each repository is written through its own deploy key: an SSH key that
@@ -58,7 +58,7 @@ jobs:
           path: cli
       - uses: actions/checkout@v7
         with:
-          repository: AugustineOjeh/homebrew-tap
+          repository: usevaris/homebrew-tap
           ssh-key: ${{ secrets.HOMEBREW_TAP_DEPLOY_KEY }}
           path: tap
       - name: Update the formula
@@ -87,11 +87,11 @@ jobs:
       # show up in this log but don't affect varis.
       - name: Install from the tap
         run: |
-          brew install augustineojeh/tap/varis
+          brew install usevaris/tap/varis
           installed="$(varis --version)"
           echo "installed $installed"
           [ "$installed" = "$VERSION" ]
-          brew test augustineojeh/tap/varis
+          brew test usevaris/tap/varis
 
   scoop:
     needs: check
@@ -102,7 +102,7 @@ jobs:
           path: cli
       - uses: actions/checkout@v7
         with:
-          repository: AugustineOjeh/scoop-bucket
+          repository: usevaris/scoop-bucket
           ssh-key: ${{ secrets.SCOOP_BUCKET_DEPLOY_KEY }}
           path: bucket
       - name: Update the manifest
@@ -135,7 +135,7 @@ jobs:
           "$HOME\scoop\shims" | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
       - name: Install from the bucket
         run: |
-          scoop bucket add varis https://github.com/AugustineOjeh/scoop-bucket
+          scoop bucket add varis https://github.com/usevaris/scoop-bucket
           scoop install varis/varis
           $installed = varis --version
           Write-Output "installed $installed"

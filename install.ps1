@@ -1,6 +1,6 @@
 # Installs the Varis CLI on Windows.
 #
-#   irm https://raw.githubusercontent.com/AugustineOjeh/varis-cli/main/install.ps1 | iex
+#   irm https://raw.githubusercontent.com/usevaris/varis-cli/main/install.ps1 | iex
 #
 # What it does, in order:
 #   1. Downloads the Windows archive from the GitHub release, and the
@@ -30,7 +30,7 @@ $ErrorActionPreference = "Stop"
 # download of this script stops halfway, that line never runs, so a partial
 # script does nothing.
 $installVaris = {
-  $repository = "AugustineOjeh/varis-cli"
+  $repository = "usevaris/varis-cli"
   $issues = "https://github.com/$repository/issues"
 
   function Fail([string] $message) {

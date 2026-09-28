@@ -6,7 +6,7 @@ what to include.
 ## Before you report
 
 1. Update to the latest version, and check the problem still happens.
-2. Search [existing issues](https://github.com/AugustineOjeh/varis-cli/issues)
+2. Search [existing issues](https://github.com/usevaris/varis-cli/issues)
    for the same error. If you find one, add your details to it rather than
    opening a new one.
 3. If the CLI printed a report link, use it. It opens the bug report with your

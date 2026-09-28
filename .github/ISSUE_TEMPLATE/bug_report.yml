@@ -10,7 +10,7 @@ body:
         knows. Add what only you know: what you ran, what you expected, and
         what happened instead.
 
-        Read [how to write a report we can act on](https://github.com/AugustineOjeh/varis-cli/blob/main/docs/reporting-issues.md)
+        Read [how to write a report we can act on](https://github.com/usevaris/varis-cli/blob/main/docs/reporting-issues.md)
         first. **Never paste your device token or the contents of
         credentials.toml.** Tokens start with `var_dt_`.
   - type: input

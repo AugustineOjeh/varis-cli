@@ -1,5 +1,5 @@
 blank_issues_enabled: false
 contact_links:
   - name: How to write a report we can act on
-    url: https://github.com/AugustineOjeh/varis-cli/blob/main/docs/reporting-issues.md
+    url: https://github.com/usevaris/varis-cli/blob/main/docs/reporting-issues.md
     about: Read this first. A report with enough context gets fixed fastest.

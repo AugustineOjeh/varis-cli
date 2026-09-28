@@ -31,26 +31,26 @@ The CLI is a single binary and doesn't need Node.js.
 With Homebrew, on macOS or Linux:
 
 ```sh
-brew install augustineojeh/tap/varis
+brew install usevaris/tap/varis
 ```
 
 Or with the install script, on macOS or Linux:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/AugustineOjeh/varis-cli/main/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/usevaris/varis-cli/main/install.sh | sh
 ```
 
 With Scoop, on Windows:
 
 ```powershell
-scoop bucket add varis https://github.com/AugustineOjeh/scoop-bucket
+scoop bucket add varis https://github.com/usevaris/scoop-bucket
 scoop install varis/varis
 ```
 
 Or with the install script, on Windows, in PowerShell:
 
 ```powershell
-irm https://raw.githubusercontent.com/AugustineOjeh/varis-cli/main/install.ps1 | iex
+irm https://raw.githubusercontent.com/usevaris/varis-cli/main/install.ps1 | iex
 ```
 
 Either installs `varis` into `.varis/bin` in your home folder, checks the
@@ -61,7 +61,7 @@ settings.
 
 ## Report a problem
 
-Open an issue on [GitHub](https://github.com/AugustineOjeh/varis-cli/issues).
+Open an issue on [GitHub](https://github.com/usevaris/varis-cli/issues).
 When the CLI hits a bug, it prints a link that fills in the details for you.
 See [how to write a report we can act on](docs/reporting-issues.md).
 
