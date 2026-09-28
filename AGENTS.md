@@ -38,6 +38,7 @@ varis-cli/
 ├── install.sh            Installer for macOS and Linux (POSIX sh, not bash).
 ├── install.ps1           Installer for Windows (Windows PowerShell 5.1).
 ├── scripts/smoke-test.sh  Checks one compiled binary runs without Node.js.
+├── scripts/homebrew-formula.sh  Writes the Homebrew formula for a release.
 ├── .github/workflows/check.yml  Type check and tests, on every pull request to main.
 ├── .github/workflows/build.yml  Compiles all five binaries and smoke-tests each.
 ├── .github/workflows/release.yml  On a version tag: builds, checksums, and releases.
