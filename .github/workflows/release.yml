@@ -2,7 +2,7 @@
 #
 #   git tag v0.2.0 && git push origin v0.2.0
 #
-# Five jobs, in order:
+# Six jobs, in order:
 #   validate  The tag must look like v1.2.3 (or v1.2.3-rc.1) and point at a
 #             commit already on main, so nothing unreviewed ships.
 #   build     build.yml, with the version stamped in from the tag: tests,
@@ -19,6 +19,11 @@
 #   packages  packages.yml: updates the Homebrew tap and the Scoop bucket
 #             to this release, and installs from each. Full releases only:
 #             a package manager must never get a pre-release.
+#   upgrade   Installs the previous full release with the install script,
+#             runs its `varis upgrade`, and checks it lands on this one, on
+#             macOS, Linux, and Windows. Full releases only, since upgrade
+#             follows the latest. Skipped while the previous release
+#             predates varis upgrade (0.3.0), whose stub can't upgrade.
 #
 # A tag with a suffix, such as v0.2.0-rc.1, makes a pre-release. GitHub never
 # marks a pre-release as latest, so the install script, `varis upgrade`, and
@@ -203,3 +208,68 @@ jobs:
       version: ${{ needs.validate.outputs.version }}
     # The deploy keys for the tap and the bucket.
     secrets: inherit
+
+  upgrade:
+    needs: [validate, install]
+    if: ${{ !contains(needs.validate.outputs.version, '-') }}
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [macos-latest, ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.runner }}
+    env:
+      VERSION: ${{ needs.validate.outputs.version }}
+      # The first release whose varis upgrade works. An older copy runs its
+      # own, older command, which is the stub.
+      FIRST_UPGRADABLE: "0.3.0"
+    steps:
+      - uses: actions/checkout@v7
+
+      # The full release before this one: the newest that isn't this tag,
+      # a draft, or a pre-release.
+      - name: Find the previous release
+        id: previous
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          previous="$(gh api "repos/$GITHUB_REPOSITORY/releases" --jq \
+            "[.[] | select(.draft == false and .prerelease == false and .tag_name != \"v$VERSION\")][0].tag_name // \"\"")"
+          previous="${previous#v}"
+          oldest="$(printf '%s\n%s\n' "$previous" "$FIRST_UPGRADABLE" | sort -V | head -1)"
+          if [ -z "$previous" ] || { [ "$oldest" = "$previous" ] && [ "$previous" != "$FIRST_UPGRADABLE" ]; }; then
+            echo "::notice::Skipping: the previous release (${previous:-none}) predates varis upgrade."
+            echo "version=" >>"$GITHUB_OUTPUT"
+          else
+            echo "Upgrading from $previous to $VERSION."
+            echo "version=$previous" >>"$GITHUB_OUTPUT"
+          fi
+
+      - name: Upgrade with install.sh's copy
+        if: steps.previous.outputs.version != '' && runner.os != 'Windows'
+        shell: bash
+        env:
+          VARIS_VERSION: ${{ steps.previous.outputs.version }}
+        run: |
+          sh install.sh
+          [ "$("$HOME/.varis/bin/varis" --version)" = "$VARIS_VERSION" ]
+          "$HOME/.varis/bin/varis" upgrade
+          installed="$("$HOME/.varis/bin/varis" --version)"
+          echo "now $installed"
+          [ "$installed" = "$VERSION" ]
+
+      - name: Upgrade with install.ps1's copy
+        if: steps.previous.outputs.version != '' && runner.os == 'Windows'
+        shell: powershell
+        env:
+          VARIS_VERSION: ${{ steps.previous.outputs.version }}
+        run: |
+          .\install.ps1
+          $varis = "$HOME\.varis\bin\varis.exe"
+          & $varis upgrade
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          # This run also deletes the old binary the upgrade parked aside.
+          $installed = & $varis --version
+          Write-Output "now $installed"
+          if ($installed -ne $env:VERSION) { exit 1 }
+          if (Test-Path "$varis.old") { Write-Error "The parked varis.exe.old wasn't removed."; exit 1 }
