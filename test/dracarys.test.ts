@@ -17,7 +17,7 @@ import { VARIS_API_ORIGIN } from "../src/lib/constants.ts";
 import { type CredentialsLocation, credentialsPath, saveToken } from "../src/lib/credentials.ts";
 import type { Output } from "../src/lib/output.ts";
 import type { Prompter } from "../src/lib/prompt.ts";
-import { PATH_MARKER, removePathLines, windowsCleanupScript } from "../src/lib/uninstall.ts";
+import { encodePowerShell, PATH_MARKER, removePathLines, windowsCleanupScript } from "../src/lib/uninstall.ts";
 
 const TOKEN = `var_dt_${"a".repeat(40)}`;
 
@@ -237,7 +237,27 @@ describe("removeAgentsBlock", () => {
   });
 });
 
+describe("encodePowerShell", () => {
+  it("encodes the script as base64 UTF-16LE, which PowerShell decodes back exactly", () => {
+    const script = windowsCleanupScript(7, { kind: "scoop" });
+    const encoded = encodePowerShell(script);
+
+    expect(encoded).toMatch(/^[A-Za-z0-9+/=]+$/);
+    expect(Buffer.from(encoded, "base64").toString("utf16le")).toBe(script);
+  });
+});
+
 describe("windowsCleanupScript", () => {
+  it("keeps a transcript, and waits for varis before doing anything", () => {
+    const lines = windowsCleanupScript(7, { kind: "scoop" }).split("\n");
+    expect(lines[0]).toContain("Start-Transcript");
+    expect(lines[0]).toContain("varis-dracarys.log");
+    expect(lines.findIndex((l) => l.startsWith("Wait-Process -Id 7"))).toBeLessThan(
+      lines.indexOf("scoop uninstall varis"),
+    );
+    expect(lines[lines.length - 1]).toBe("Stop-Transcript | Out-Null");
+  });
+
   it("quotes a path with an apostrophe for PowerShell", () => {
     const script = windowsCleanupScript(1, { kind: "script", installDir: "C:\\Users\\O'Brien\\.varis\\bin" });
     expect(script).toContain("$dir = 'C:\\Users\\O''Brien\\.varis\\bin'");

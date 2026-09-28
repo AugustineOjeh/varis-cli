@@ -80,8 +80,11 @@ export type WindowsCleanup =
 export function windowsCleanupScript(pid: number, cleanup: WindowsCleanup): string {
   const quote = (value: string) => `'${value.replaceAll("'", "''")}'`;
   const lines = [
-    `$ErrorActionPreference = "SilentlyContinue"`,
-    `Wait-Process -Id ${pid} -Timeout 120`,
+    // Runs hidden, so it keeps a record of what it did, for when something
+    // is left behind: %TEMP%\varis-dracarys.log.
+    `Start-Transcript -Path (Join-Path $env:TEMP "${DRACARYS_LOG}") -Force | Out-Null`,
+    `$ErrorActionPreference = "Continue"`,
+    `Wait-Process -Id ${pid} -Timeout 120 -ErrorAction SilentlyContinue`,
   ];
 
   if (cleanup.kind === "scoop") {
@@ -103,7 +106,22 @@ export function windowsCleanupScript(pid: number, cleanup: WindowsCleanup): stri
       `Remove-Item -Recurse -Force (Split-Path -Parent $dir)`,
     );
   }
+  lines.push("Stop-Transcript | Out-Null");
   return lines.join("\n");
+}
+
+/** Where the background script's transcript goes, in %TEMP%. */
+export const DRACARYS_LOG = "varis-dracarys.log";
+
+/**
+ * The script as PowerShell's -EncodedCommand takes it: base64 of its
+ * UTF-16LE bytes. Passing a multi-line script with quotes as a plain
+ * -Command argument goes through Windows' command-line quoting rules, which
+ * can mangle it; an encoded command is letters, digits, +, / and =, which
+ * survive any quoting.
+ */
+export function encodePowerShell(script: string): string {
+  return Buffer.from(script, "utf16le").toString("base64");
 }
 
 /**
@@ -113,7 +131,7 @@ export function windowsCleanupScript(pid: number, cleanup: WindowsCleanup): stri
 export function startDetachedPowerShell(script: string): void {
   const child = spawn(
     "powershell",
-    ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", script],
+    ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-EncodedCommand", encodePowerShell(script)],
     { detached: true, stdio: "ignore", windowsHide: true },
   );
   child.unref();

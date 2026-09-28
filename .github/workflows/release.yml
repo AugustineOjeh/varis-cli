@@ -338,3 +338,9 @@ jobs:
           }
           $userPath = [Environment]::GetEnvironmentVariable("Path", "User")
           if ($userPath -like "*\.varis\bin*") { Write-Error "The PATH entry is still there"; exit 1 }
+
+      # The background uninstall script's record of what it did.
+      - name: Show the uninstall transcript
+        if: failure() && runner.os == 'Windows'
+        shell: pwsh
+        run: Get-Content (Join-Path $env:TEMP "varis-dracarys.log") -ErrorAction SilentlyContinue
